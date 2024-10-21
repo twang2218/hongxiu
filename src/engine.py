@@ -1,6 +1,7 @@
 from pathlib import Path
 import re
 from typing import Optional, Dict, List, Callable
+from loguru import logger
 from pydantic import BaseModel, Field
 # 导入langchain_core中的相关模块
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -11,6 +12,7 @@ from langchain_openai import ChatOpenAI
 from langchain_community.llms import Tongyi
 from langchain_community.chat_models.tongyi import ChatTongyi
 
+from .config import AppConfig
 from .md2mm import markdown_to_mindmap
 
 def create_model(model_name: str) -> BaseChatModel:
@@ -28,20 +30,6 @@ def create_chain(model_name: str, template: str) -> ChatPromptTemplate:
     chain = prompt | model | StrOutputParser()
     return chain
 
-class ChainConfig(BaseModel):
-    engine_name: str = Field("", alias="model_name", description="The name of the model")
-    template: str = Field("", description="The template used by the chain")
-    class Config:
-        protected_namespaces = ()
-
-class ChainsConfig(BaseModel):
-    summary: ChainConfig = Field(default_factory=ChainConfig)
-    mindmap: ChainConfig = Field(default_factory=ChainConfig)
-
-class AppConfig(BaseModel):
-    chains: ChainsConfig = Field(default_factory=ChainsConfig)
-    debug: bool = Field(False)
-
 class Engine(BaseModel):
     hooks: Dict[str, List[Callable]] = {
         "on_summary": [],
@@ -53,9 +41,12 @@ class Engine(BaseModel):
     mindmap_chain: Optional[RunnableSequence] = None
 
     # pylint: disable=no-member
-    def __init__(self, config: dict, **kwargs):
+    def __init__(self, config: dict | AppConfig, **kwargs):
         super().__init__(**kwargs)
-        self.config = AppConfig(**config)
+        if isinstance(config, dict):
+            self.config = AppConfig(**config)
+        else:
+            self.config = config
         self.summary_chain = create_chain(
             self.config.chains.summary.engine_name,
             self.config.chains.summary.template
@@ -76,7 +67,7 @@ class Engine(BaseModel):
                 f.write(summary)
         else:
             if Path(output).exists():
-                print(f"{output} is exist, please use --override to override it.")
+                logger.warning(f"{output} is exist, please use --override to override it.")
         return summary
 
     def mindmap(self, content: str, output: str, override: bool = False) -> str:
@@ -89,7 +80,7 @@ class Engine(BaseModel):
         if not override and markdown_file.exists():
             markdown = markdown_file.read_text(encoding='utf-8')
             if po.exists():
-                print(f"{output} is exist, please use --override to override it.")
+                logger.warning(f"{output} is exist, please use --override to override it.")
                 return markdown
         
         if not markdown:

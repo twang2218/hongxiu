@@ -5,6 +5,7 @@ from collections import deque
 import struct
 
 from graphviz import Digraph
+from loguru import logger
 from pydantic import BaseModel
 
 DEFAULT_PALETTE = [
@@ -130,7 +131,7 @@ def parse_markdown_to_tree(markdown: str) -> Optional[TreeNode]:
                 level = stack[-1].level + 1
                 kind = 'T'
                 node = TreeNode(content, level, kind)
-                print(f"parse_markdown_to_tree(1): Text: [{level}] => {content[:20]}...")
+                logger.debug(f"parse_markdown_to_tree(1): Text: [{level}] => {content[:20]}...")
         else:
             level = stack[-1].level + 1
             content = clean_content(line_strip)
@@ -139,7 +140,7 @@ def parse_markdown_to_tree(markdown: str) -> Optional[TreeNode]:
                 break
             kind = 'T'
             node = TreeNode(content, level, kind)
-            print(f"parse_markdown_to_tree(2): Text: [{level}] => {content[:20]}...")
+            logger.debug(f"parse_markdown_to_tree(2): Text: [{level}] => {content[:20]}...")
 
         while len(stack) > 1 and stack[-1].level >= level:
             stack.pop()
@@ -220,7 +221,7 @@ def markdown_to_mindmap(markdown: str, output: str):
     tree = parse_markdown_to_tree(markdown)
     assign_color_to_tree(tree)
     for node in tree.dfs():
-        print(node)
+        logger.debug(node)
 
     dot = Digraph(comment='Mindmap')
     dot.attr(rankdir='LR', layout='dot')
@@ -238,5 +239,5 @@ def markdown_to_mindmap(markdown: str, output: str):
     po = Path(output)
     src = po.parent / f"{po.stem}.gv"
     pdf = po.parent / f"{po.stem}.pdf"
-    print(f"markdown_to_mindmap(): output: {output}, src: {src}, pdf: {pdf}")
+    logger.debug(f"markdown_to_mindmap(): output: {output}, src: {src}, pdf: {pdf}")
     dot.render(filename=src, format='pdf', outfile=pdf)
