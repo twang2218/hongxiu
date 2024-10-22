@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from loguru import logger
 from pydantic import BaseModel
 
-from .utils import read_pdf
+from .utils import read_pdf, download_paper
 from .engine import Engine
 from .config import AppConfig, load_config, DEFAULT_CONFIG_YAML
 
@@ -34,16 +34,20 @@ def main(ctx, config, debug):
 
 # summary子命令
 @main.command()
-@click.argument('input_path', type=click.Path(exists=True))
+@click.argument('input_path', type=str)
 @click.option('--output_dir', type=click.Path(), default=None, help='保存总结的目录')
 @click.option('--override', is_flag=True, help='覆盖已有文件')
 @click.pass_context
 def summary(ctx, input_path, output_dir, override):
     pi = Path(input_path)
-    if pi.is_dir():
-        inputs = [f for f in pi.iterdir() if f.suffix == '.pdf']
+    if not pi.exists():
+        paper = download_paper(input_path, output_dir)
+        inputs = [paper]
     else:
-        inputs = [pi]
+        if pi.is_dir():
+            inputs = [f for f in pi.iterdir() if f.suffix == '.pdf']
+        else:
+            inputs = [pi]
     
     po = Path(output_dir) if output_dir else pi.parent
     if not po.exists():
@@ -59,16 +63,20 @@ def summary(ctx, input_path, output_dir, override):
 
 # mindmap子命令
 @main.command()
-@click.argument('input_path', type=click.Path(exists=True))
+@click.argument('input_path', type=str)
 @click.option('--output_dir', type=click.Path(), default=None, help='保存脑图的目录')
 @click.option('--override', is_flag=True, help='覆盖已有文件')
 @click.pass_context
 def mindmap(ctx, input_path, output_dir, override):
     pi = Path(input_path)
-    if pi.is_dir():
-        inputs = [f for f in pi.iterdir() if f.suffix == '.pdf']
+    if not pi.exists():
+        paper = download_paper(input_path, output_dir)
+        inputs = [paper]
     else:
-        inputs = [pi]
+        if pi.is_dir():
+            inputs = [f for f in pi.iterdir() if f.suffix == '.pdf']
+        else:
+            inputs = [pi]
     
     po = Path(output_dir) if output_dir else pi.parent
     if not po.exists():

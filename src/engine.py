@@ -88,12 +88,15 @@ def render_markdown(data: str, output: Path, override: bool = False) -> str:
 
     return result
 
+def render_latex_text_escape(text: str) -> str:
+    return text.replace("&", r"\&").replace("%", r"\%").replace("_", r"\_")
+
 def render_latex_list(buf: io.StringIO, data: list, level: int = 0):
     indent = "  " * level
     buf.write(indent + r"\begin{enumerate}" + "\n")
     for item in data:
         if isinstance(item, str):
-            buf.write(indent + r"  \item " + item + "\n")
+            buf.write(indent + r"  \item " + render_latex_text_escape(item) + "\n")
         elif isinstance(item, list):
             render_latex_list(buf, item, level + 1)
         elif isinstance(item, dict):
@@ -108,7 +111,7 @@ def render_latex_dict(buf: io.StringIO, data: dict, level: int = 0):
     for key in data:
         value = data[key]
         if isinstance(value, str):
-            buf.write(indent + r"  \item \textbf{" + key + r"}: " + value + "\n")
+            buf.write(indent + r"  \item \textbf{" + key + r"}: " + render_latex_text_escape(value) + "\n")
         elif isinstance(value, list):
             buf.write(indent + r"  \item \textbf{" + key + r"}:" + "\n")
             render_latex_list(buf, value, level + 2)
@@ -127,7 +130,7 @@ def render_latex(data: dict|str, output: Path, override: bool = False) -> str:
     buf = io.StringIO()
     # Header
     buf.write(r"""
-    \documentclass[22pt, a1paper, portrait]{tikzposter}
+    \documentclass[20pt, a1paper, portrait]{tikzposter}
     \usepackage{graphicx}
     \usepackage{amsmath}
     \usepackage{xeCJK}
@@ -231,7 +234,7 @@ def latex_to_pdf(latex_file: Path, output: Path, override: bool = False):
     latex_file = latex_file.relative_to(output.parent)
     os.system(f"xelatex --shell-escape {latex_file}")
     # 清理临时文件
-    os.system(f"rm {latex_file.stem}.aux {latex_file.stem}.log {latex_file.stem}.out")  
+    os.system(f"rm -f {latex_file.stem}.aux {latex_file.stem}.log {latex_file.stem}.out")  
     os.chdir(current_dir)
 
 class Engine(BaseModel):
@@ -268,9 +271,10 @@ class Engine(BaseModel):
         p_pdf = po.parent / (po.stem + '.pdf')
 
         # 如果文件已经存在，且不覆盖，则直接返回.md文件内容
-        if p_yaml.exists() and True:
+        if p_yaml.exists() and False:
             summary = p_yaml.read_text(encoding='utf-8')
         else:
+            logger.info(f"Generating Summary to {p_yaml}")
             summary = self.summary_chain.invoke({'text': content})
             summary = remove_markdown_wrapper(summary)
 
@@ -304,6 +308,7 @@ class Engine(BaseModel):
         
         if not markdown:
             # 调用模型生成脑图 Markdown
+            logger.info(f"Generating Mindmap Markdown to {markdown_file}")
             markdown = self.mindmap_chain.invoke({'text': content})
             # 清理返回结果，去除无关内容
             re_markdown_wrapper = re.compile(r"```markdown\n(.+)\n```", re.RegexFlag.S)
@@ -321,6 +326,7 @@ class Engine(BaseModel):
                     hook(markdown)
 
         # 转换脑图 Markdown 为 PDF
+        logger.info(f"Converting Mindmap Markdown to PDF {output}")
         markdown_to_mindmap(markdown, output)
     
         if self.hooks["on_mindmap_pdf"]:
