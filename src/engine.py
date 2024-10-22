@@ -1,3 +1,5 @@
+import io
+import os
 from pathlib import Path
 import re
 from typing import Optional, Dict, List, Callable
@@ -11,6 +13,8 @@ from langchain_core.runnables.base import RunnableSequence
 from langchain_openai import ChatOpenAI
 from langchain_community.llms import Tongyi
 from langchain_community.chat_models.tongyi import ChatTongyi
+import yaml
+import yaml.parser
 
 from .config import AppConfig
 from .md2mm import markdown_to_mindmap
@@ -29,6 +33,206 @@ def create_chain(model_name: str, template: str) -> ChatPromptTemplate:
         ])
     chain = prompt | model | StrOutputParser()
     return chain
+
+def remove_markdown_wrapper(content: str) -> str:
+    re_markdown_wrapper = re.compile(r"```\w*\n(.+)\n```", re.RegexFlag.S)
+    m = re_markdown_wrapper.match(content)
+    if m:
+        # 发现内容被markdown包裹，提取其中的内容
+        return m.group(1)
+    else:
+        # 直接返回原内容
+        return content
+    
+def render_markdown(data: str, output: Path, override: bool = False) -> str:
+    logger.info(f"Rendering Markdown to {output}")
+    if isinstance(data, str):
+        data = yaml.safe_load(data)
+    buf = io.StringIO()
+
+    # 开始渲染 Markdown
+    buf.write(f"# {data['title']}\n\n")
+    if 'authors' in data:
+        buf.write(f"**作者：** {data['authors']}  \n")
+    if 'date' in data:
+        buf.write(f"**日期：** {data['date']}  \n")
+    if 'institution' in data:
+        buf.write(f"**机构：** {data['institution']}  \n")
+
+    buf.write("\n")
+    if 'tldr' in data:
+        buf.write(f"## 摘要\n\n{data['tldr']}\n\n")
+    
+    if 'summary' in data:
+        buf.write("## 总结\n\n")
+        for title in data['summary']:
+            buf.write(f"### {title}\n\n")
+            for subtitle in data['summary'][title]:
+                buf.write(f"#### {subtitle}\n\n")
+                if isinstance(data['summary'][title][subtitle], list):
+                    for item in data['summary'][title][subtitle]:
+                        buf.write(f"- {item}\n")
+                if isinstance(data['summary'][title][subtitle], dict):
+                    for item in data['summary'][title][subtitle]:
+                        buf.write(f"- **{item}:** {data['summary'][title][subtitle][item]}\n")
+                else:
+                    buf.write(data['summary'][title][subtitle])
+                buf.write("\n\n")
+
+    result = buf.getvalue()
+    if not override and output.exists():
+        logger.warning(f"{output} is exist, please use --override to override it.")
+    else:
+        with open(output, 'w', encoding='utf-8') as f:
+            f.write(result)
+
+    return result
+
+def render_latex_list(buf: io.StringIO, data: list, level: int = 0):
+    indent = "  " * level
+    buf.write(indent + r"\begin{enumerate}" + "\n")
+    for item in data:
+        if isinstance(item, str):
+            buf.write(indent + r"  \item " + item + "\n")
+        elif isinstance(item, list):
+            render_latex_list(buf, item, level + 1)
+        elif isinstance(item, dict):
+            render_latex_dict(buf, item, level + 1)
+        else:
+            logger.warning(f"render_latex_list(): Unknown type {type(item)} : {item} in list.")
+    buf.write(indent + r"\end{enumerate}" + "\n")
+
+def render_latex_dict(buf: io.StringIO, data: dict, level: int = 0):
+    indent = "  " * level
+    buf.write(indent + r"\begin{enumerate}" + "\n")
+    for key in data:
+        value = data[key]
+        if isinstance(value, str):
+            buf.write(indent + r"  \item \textbf{" + key + r"}: " + value + "\n")
+        elif isinstance(value, list):
+            buf.write(indent + r"  \item \textbf{" + key + r"}:" + "\n")
+            render_latex_list(buf, value, level + 2)
+        elif isinstance(value, dict):
+            buf.write(indent + r"  \item \textbf{" + key + r"}:" + "\n")
+            render_latex_dict(buf, value, level + 2)
+        else:
+            logger.warning(f"render_latex_dict(): Unknown type {type(value)} : {value} in dict.")
+    buf.write(indent + r"\end{enumerate}" + "\n")
+
+def render_latex(data: dict|str, output: Path, override: bool = False) -> str:
+    logger.info(f"Rendering LaTeX to {output}")
+    if isinstance(data, str):
+        data = yaml.safe_load(data)
+
+    buf = io.StringIO()
+    # Header
+    buf.write(r"""
+    \documentclass[22pt, a1paper, portrait]{tikzposter}
+    \usepackage{graphicx}
+    \usepackage{amsmath}
+    \usepackage{xeCJK}
+    \usepackage{fontspec}
+    \usepackage{unicode-math}
+
+    % 字体设置
+
+    \setCJKmainfont{Noto Sans CJK SC Light} % 使用 Noto Serif CJK SC 字体
+    \setCJKsansfont{Noto Sans CJK SC Light} % 使用 Noto Sans CJK SC 字体
+    \setCJKmonofont{Noto Mono CJK SC Light} % 使用 Noto Mono CJK SC 字体% 风格定义
+    \linespread{1.2}
+
+    % 定义样式
+
+    \defineblockstyle{Basic2}{
+        titlewidthscale=1, bodywidthscale=1, titleleft,
+        titleoffsetx=0pt, titleoffsety=0pt, bodyoffsetx=0pt, bodyoffsety=10mm,
+        bodyverticalshift=10mm, roundedcorners=22, linewidth=1pt,
+        titleinnersep=8mm, bodyinnersep=8mm
+    }{
+        \draw[rounded corners=\blockroundedcorners, inner sep=\blockbodyinnersep, line width=\blocklinewidth, color=framecolor, fill=blockbodybgcolor]
+            (blockbody.south west) rectangle (blockbody.north east); %
+        \ifBlockHasTitle%
+            \draw[rounded corners=\blockroundedcorners, inner sep=\blocktitleinnersep, line width=\blocklinewidth, color=framecolor, fill=blocktitlebgcolor]
+            (blocktitle.south west) rectangle (blocktitle.north east); %
+        \fi%
+    }
+
+    \definelayouttheme{PaperPoster}{
+        \usecolorstyle[colorPalette=BlueGrayOrange]{Spain}
+        \usebackgroundstyle{VerticalGradation}
+        \usetitlestyle{Wave}
+        \useblockstyle{Basic2}
+        \useinnerblockstyle{Default}
+        \usenotestyle{VerticalShading}
+    }
+
+    \usetheme{PaperPoster}
+    
+    """)
+    # Content
+
+    ## 文档
+    buf.write(r"\begin{document}" + "\n")
+    
+    ## 主题
+    if 'title' in data:
+        buf.write(r"\title {\parbox{0.9\textwidth}{\sloppy " + data['title'] + "}}\n")
+    if 'authors' in data:
+        buf.write(r"\author{\parbox{0.9\textwidth}{\sloppy " + data['authors'] + "}}\n")
+    if 'date' in data:
+        buf.write(r"\date{" + data['date'] + "}\n")
+    if 'institution' in data:
+        buf.write(r"\institute{\parbox{0.9\textwidth}{\sloppy " + data['institution'] + "}}\n")
+
+    ## 标题
+    buf.write(r"\maketitle" + "\n")
+
+    ## 双栏
+    buf.write(r"\begin{columns}" + "\n")
+    num_titles = len(data['summary'])
+    left_column = num_titles // 2
+
+    for i, title in enumerate(data['summary'].keys()):
+        if i in (0, left_column):
+            buf.write(r"\column{0.5}" + "\n")
+        value = data['summary'][title]
+        buf.write(r"\block{" + title + r"}{" + "\n")
+        if isinstance(value, list):
+            render_latex_list(buf, value, 1)
+        elif isinstance(value, dict):
+            render_latex_dict(buf, value, 1)
+        elif isinstance(value, str):
+            buf.write(value + "\n")
+        else:
+            logger.warning(f"render_latex(): Unknown type {type(data['summary'][title])} : {data['summary'][title]} in summary.")
+        buf.write("}\n")
+
+    buf.write(r"\end{columns}" + "\n")
+    buf.write(r"\end{document}" + "\n")
+
+    result = buf.getvalue()
+    if not override and output.exists():
+        logger.warning(f"{output} is exist, please use --override to override it.")
+    else:
+        with open(output, 'w', encoding='utf-8') as f:
+            f.write(result)
+
+    return result
+
+def latex_to_pdf(latex_file: Path, output: Path, override: bool = False):
+    if not override and output.exists():
+        logger.warning(f"{output} is exist, please use --override to override it.")
+        return
+
+    logger.info(f"Converting {latex_file} to {output}")
+    # 由于xelatex直接生成到当前目录，所以需要切换到输出目录
+    current_dir = os.getcwd()
+    os.chdir(output.parent)
+    latex_file = latex_file.relative_to(output.parent)
+    os.system(f"xelatex --shell-escape {latex_file}")
+    # 清理临时文件
+    os.system(f"rm {latex_file.stem}.aux {latex_file.stem}.log {latex_file.stem}.out")  
+    os.chdir(current_dir)
 
 class Engine(BaseModel):
     hooks: Dict[str, List[Callable]] = {
@@ -57,17 +261,32 @@ class Engine(BaseModel):
         )
 
     def summarize(self, content: str, output: str, override: bool = False) -> str:
-        summary = self.summary_chain.invoke({'text': content})
+        po = Path(output)
+        p_yaml = po.parent / (po.stem + '.yaml')
+        p_md = po.parent / (po.stem + '.md')
+        p_latex = po.parent / (po.stem + '.tex')
+        p_pdf = po.parent / (po.stem + '.pdf')
+
+        # 如果文件已经存在，且不覆盖，则直接返回.md文件内容
+        if p_yaml.exists() and True:
+            summary = p_yaml.read_text(encoding='utf-8')
+        else:
+            summary = self.summary_chain.invoke({'text': content})
+            summary = remove_markdown_wrapper(summary)
+
+        # 调用钩子函数
         if self.hooks["on_summary"]:
             for hook in self.hooks["on_summary"]:
                 if callable(hook):
                     hook(summary)
+
         if override:
-            with open(output, 'w', encoding='utf-8') as f:
+            with open(p_yaml, 'w', encoding='utf-8') as f:
                 f.write(summary)
-        else:
-            if Path(output).exists():
-                logger.warning(f"{output} is exist, please use --override to override it.")
+
+        render_markdown(summary, p_md, override)
+        render_latex(summary, p_latex, override)
+        latex_to_pdf(p_latex, p_pdf, override)
         return summary
 
     def mindmap(self, content: str, output: str, override: bool = False) -> str:
