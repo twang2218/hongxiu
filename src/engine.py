@@ -16,7 +16,7 @@ from langchain_community.chat_models.tongyi import ChatTongyi
 import yaml
 import yaml.parser
 
-from .config import AppConfig
+from .config import AppConfig, load_template
 from .md2mm import markdown_to_mindmap
 
 def create_model(model_name: str) -> BaseChatModel:
@@ -122,62 +122,13 @@ def render_latex_dict(buf: io.StringIO, data: dict, level: int = 0):
             logger.warning(f"render_latex_dict(): Unknown type {type(value)} : {value} in dict.")
     buf.write(indent + r"\end{enumerate}" + "\n")
 
-def render_latex(data: dict|str, output: Path, override: bool = False) -> str:
+def render_latex(data: dict|str, template: str, output: Path, override: bool = False) -> str:
     logger.info(f"Rendering LaTeX to {output}")
     if isinstance(data, str):
         data = yaml.safe_load(data)
 
+    ## 标题
     buf = io.StringIO()
-    # Header
-    buf.write(r"""
-    \documentclass[20pt, a1paper, portrait]{tikzposter}
-    \usepackage{graphicx}
-    \usepackage{amsmath}
-    \usepackage{xeCJK}
-    \usepackage{fontspec}
-    \usepackage{unicode-math}
-
-    % 字体设置
-
-    \setCJKmainfont{Noto Sans CJK SC Light} % 使用 Noto Serif CJK SC 字体
-    \setCJKsansfont{Noto Sans CJK SC Light} % 使用 Noto Sans CJK SC 字体
-    \setCJKmonofont{Noto Mono CJK SC Light} % 使用 Noto Mono CJK SC 字体% 风格定义
-    \linespread{1.2}
-
-    % 定义样式
-
-    \defineblockstyle{Basic2}{
-        titlewidthscale=1, bodywidthscale=1, titleleft,
-        titleoffsetx=0pt, titleoffsety=0pt, bodyoffsetx=0pt, bodyoffsety=10mm,
-        bodyverticalshift=10mm, roundedcorners=22, linewidth=1pt,
-        titleinnersep=8mm, bodyinnersep=8mm
-    }{
-        \draw[rounded corners=\blockroundedcorners, inner sep=\blockbodyinnersep, line width=\blocklinewidth, color=framecolor, fill=blockbodybgcolor]
-            (blockbody.south west) rectangle (blockbody.north east); %
-        \ifBlockHasTitle%
-            \draw[rounded corners=\blockroundedcorners, inner sep=\blocktitleinnersep, line width=\blocklinewidth, color=framecolor, fill=blocktitlebgcolor]
-            (blocktitle.south west) rectangle (blocktitle.north east); %
-        \fi%
-    }
-
-    \definelayouttheme{PaperPoster}{
-        \usecolorstyle[colorPalette=BlueGrayOrange]{Spain}
-        \usebackgroundstyle{VerticalGradation}
-        \usetitlestyle{Wave}
-        \useblockstyle{Basic2}
-        \useinnerblockstyle{Default}
-        \usenotestyle{VerticalShading}
-    }
-
-    \usetheme{PaperPoster}
-    
-    """)
-    # Content
-
-    ## 文档
-    buf.write(r"\begin{document}" + "\n")
-    
-    ## 主题
     if 'title' in data:
         buf.write(r"\title {\parbox{0.9\textwidth}{\sloppy " + data['title'] + "}}\n")
     if 'authors' in data:
@@ -186,15 +137,14 @@ def render_latex(data: dict|str, output: Path, override: bool = False) -> str:
         buf.write(r"\date{" + data['date'] + "}\n")
     if 'institution' in data:
         buf.write(r"\institute{\parbox{0.9\textwidth}{\sloppy " + data['institution'] + "}}\n")
+    latex = template.replace("|metadata|", buf.getvalue())
+    buf.close()
 
-    ## 标题
-    buf.write(r"\maketitle" + "\n")
-
-    ## 双栏
-    buf.write(r"\begin{columns}" + "\n")
+    ## 内容
     num_titles = len(data['summary'])
     left_column = num_titles // 2
 
+    buf = io.StringIO()
     for i, title in enumerate(data['summary'].keys()):
         if i in (0, left_column):
             buf.write(r"\column{0.5}" + "\n")
@@ -209,18 +159,15 @@ def render_latex(data: dict|str, output: Path, override: bool = False) -> str:
         else:
             logger.warning(f"render_latex(): Unknown type {type(data['summary'][title])} : {data['summary'][title]} in summary.")
         buf.write("}\n")
+    latex = latex.replace("|content|", buf.getvalue())
 
-    buf.write(r"\end{columns}" + "\n")
-    buf.write(r"\end{document}" + "\n")
-
-    result = buf.getvalue()
     if not override and output.exists():
         logger.warning(f"{output} is exist, please use --override to override it.")
     else:
         with open(output, 'w', encoding='utf-8') as f:
-            f.write(result)
+            f.write(latex)
 
-    return result
+    return latex
 
 def latex_to_pdf(latex_file: Path, output: Path, override: bool = False):
     if not override and output.exists():
@@ -232,7 +179,7 @@ def latex_to_pdf(latex_file: Path, output: Path, override: bool = False):
     current_dir = os.getcwd()
     os.chdir(output.parent)
     latex_file = latex_file.relative_to(output.parent)
-    os.system(f"xelatex --shell-escape {latex_file}")
+    os.system(f"xelatex --shell-escape -interaction=nonstopmode {latex_file}")
     # 清理临时文件
     os.system(f"rm -f {latex_file.stem}.aux {latex_file.stem}.log {latex_file.stem}.out")  
     os.chdir(current_dir)
@@ -289,7 +236,8 @@ class Engine(BaseModel):
                 f.write(summary)
 
         render_markdown(summary, p_md, override)
-        render_latex(summary, p_latex, override)
+        template = load_template()
+        render_latex(summary, template, p_latex, override)
         latex_to_pdf(p_latex, p_pdf, override)
         return summary
 

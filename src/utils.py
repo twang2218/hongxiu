@@ -41,21 +41,6 @@ def read_pdf(filename: str) -> str:
             text += page.extract_text()
     return text
 
-CONFIG_FILE = "config.yaml"
-CONFIG_PROMPTS = "prompts.yaml"
-
-def load_config(filename: str):
-    with open(filename, mode='r', encoding='utf-8') as f:
-        config = yaml.safe_load(f)
-        return config
-
-def default_config_path():
-    pf = Path(__file__).parent
-    return pf.parent / "config" / CONFIG_FILE
-
-def load_prompts():
-    return load_config(CONFIG_PROMPTS)
-
 def download_paper(paper: str, output_dir: str) -> Path:
     import requests
     re_arxiv = re.compile(r"\d+\.\d+")  # arXiv ID

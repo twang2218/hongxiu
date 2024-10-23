@@ -1,0 +1,65 @@
+\documentclass[20pt, a1paper, portrait]{tikzposter}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{xeCJK}
+\usepackage{fontspec}
+\usepackage{unicode-math}
+
+% 字体设置
+
+\setCJKmainfont{Noto Sans CJK SC Light} % 使用 Noto Serif CJK SC 字体
+\setCJKsansfont{Noto Sans CJK SC Light} % 使用 Noto Sans CJK SC 字体
+\setCJKmonofont{Noto Mono CJK SC Light} % 使用 Noto Mono CJK SC 字体% 风格定义
+\linespread{1.2}
+
+% 定义样式
+
+\definecolorpalette{ForestGreen}{ % 森林绿
+    \definecolor{colorOne}{HTML}{4CA64C} % 森林绿 Forest Green
+    \definecolor{colorTwo}{HTML}{D9EAD3} % 浅灰 Light Gray
+    \definecolor{colorThree}{HTML}{C0392B} % 砖红 Brick Red
+}
+
+\defineblockstyle{Basic2}{
+    titlewidthscale=1, bodywidthscale=1, titleleft,
+    titleoffsetx=0pt, titleoffsety=0pt, bodyoffsetx=0pt, bodyoffsety=10mm,
+    bodyverticalshift=10mm, roundedcorners=22, linewidth=1pt,
+    titleinnersep=8mm, bodyinnersep=8mm
+}{
+    \draw[rounded corners=\blockroundedcorners, inner sep=\blockbodyinnersep, line width=\blocklinewidth, color=framecolor, fill=blockbodybgcolor]
+        (blockbody.south west) rectangle (blockbody.north east); %
+    \ifBlockHasTitle%
+        \draw[rounded corners=\blockroundedcorners, inner sep=\blocktitleinnersep, line width=\blocklinewidth, color=framecolor, fill=blocktitlebgcolor]
+        (blocktitle.south west) rectangle (blocktitle.north east); %
+    \fi%
+}
+
+\definelayouttheme{PaperPoster}{
+    \usecolorstyle[colorPalette=ForestGreen]{Spain}
+    \usebackgroundstyle{VerticalGradation}
+    \usetitlestyle{Wave}
+    \useblockstyle{Basic2}
+    \useinnerblockstyle{Default}
+    \usenotestyle{VerticalShading}
+}
+
+\usetheme{PaperPoster}
+
+% Paper metedata
+
+|metadata|
+
+
+\begin{document}
+
+\maketitle
+
+\begin{columns}
+
+% content
+
+|content|
+
+\end{columns}
+
+\end{document}
