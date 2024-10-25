@@ -11,6 +11,7 @@ class ChainConfig(BaseModel):
 class ChainsConfig(BaseModel):
     summary: ChainConfig = Field(default_factory=ChainConfig)
     mindmap: ChainConfig = Field(default_factory=ChainConfig)
+    figures: ChainConfig = Field(default_factory=ChainConfig)
 
 class AppConfig(BaseModel):
     chains: ChainsConfig = Field(default_factory=ChainsConfig)

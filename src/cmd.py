@@ -5,7 +5,8 @@ from dotenv import load_dotenv
 from loguru import logger
 from pydantic import BaseModel
 
-from .utils import read_pdf, download_paper
+from .utils import download_paper
+from .pdf_parser import read_pdf
 from .engine import Engine
 from .config import AppConfig, load_config, DEFAULT_CONFIG_YAML
 
@@ -93,14 +94,16 @@ def mindmap(ctx, input_path, output_dir, override):
 @click.argument('input_path', type=click.Path(exists=True))
 @click.pass_context
 def dev(ctx, input_path):
-    from .md2mm import parse_markdown_to_tree
-    logger.level('TRACE')
-    with open(input_path, 'r', encoding='utf-8') as f:
-        markdown = f.read()
-        logger.debug(f"dev(): markdown: {markdown[:100]}...")
-        t = parse_markdown_to_tree(markdown)
-        for node in t.dfs():
-            logger.debug(node)
+    from .pdf_parser import PdfParserType, read_pdf
+    engine = ctx.obj.engine
+
+    pi = Path(input_path)
+    po = pi.parent / pi.stem
+    content = read_pdf(input_path, pdf_parser=PdfParserType.PIX2TEXT, override=True)
+    figures = engine.figures(content, output=po, override=True)
+    for f in figures:
+        print(f"Figure:  [{f.type}]\t{f.link}\t{f.desc}")
+
 
 if __name__ == '__main__':
     main()

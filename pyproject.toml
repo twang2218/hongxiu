@@ -12,6 +12,8 @@ dependencies = [
     "langchain-core>=0.3.11",
     "langchain-openai>=0.2.2",
     "loguru>=0.7.2",
+    "pix2text>=1.1.1.2",
+    "pymupdf4llm>=0.0.17",
     "pypdf2>=3.0.1",
     "setuptools>=75.2.0",
 ]
