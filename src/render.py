@@ -1,45 +1,56 @@
-
+from collections import deque
 import io
 import os
 from pathlib import Path
+from typing import List, Optional
 
+from graphviz import Digraph
 from loguru import logger
+from pydantic import BaseModel
 import yaml
 
+from .utils import color_gradient, color_luminance, dot_to_pdf
+from .model import Mindmap, Summary
 
-def render_markdown(data: str|dict, output: Path, override: bool = False) -> str:
-    logger.info(f"Rendering Markdown to {output}")
+
+def render_summary_to_markdown(data: str|dict|Summary, output: Path, override: bool = False) -> str:
+    logger.info(f"Rendering Summary to Markdown ({output})")
+
+    # 所有 data 都转换为目标 Summary 对象
     if isinstance(data, str):
         data = yaml.safe_load(data)
-    buf = io.StringIO()
+        data = Summary(**data)
+    elif isinstance(data, dict):
+        data = Summary(**data)
 
     # 开始渲染 Markdown
-    buf.write(f"# {data['title']}\n\n")
-    if 'authors' in data:
-        buf.write(f"**作者：** {data['authors']}  \n")
-    if 'date' in data:
-        buf.write(f"**日期：** {data['date']}  \n")
-    if 'institution' in data:
-        buf.write(f"**机构：** {data['institution']}  \n")
+    buf = io.StringIO()
+    buf.write(f"# {data.title}\n\n")
+    if data.authors:
+        buf.write(f"**作者：** {data.authors}  \n")
+    if data.date:
+        buf.write(f"**日期：** {data.date}  \n")
+    if data.institution:
+        buf.write(f"**机构：** {data.institution}  \n")
 
     buf.write("\n")
-    if 'tldr' in data:
-        buf.write(f"## 摘要\n\n{data['tldr']}\n\n")
+    if data.tldr:
+        buf.write(f"## 摘要\n\n{data.tldr}\n\n")
     
-    if 'summary' in data:
+    if data.summary:
         buf.write("## 总结\n\n")
-        for title in data['summary']:
+        for title in data.summary:
             buf.write(f"### {title}\n\n")
-            for subtitle in data['summary'][title]:
+            for subtitle in data.summary[title]:
                 buf.write(f"#### {subtitle}\n\n")
-                if isinstance(data['summary'][title][subtitle], list):
-                    for item in data['summary'][title][subtitle]:
+                if isinstance(data.summary[title][subtitle], list):
+                    for item in data.summary[title][subtitle]:
                         buf.write(f"- {item}\n")
-                if isinstance(data['summary'][title][subtitle], dict):
-                    for item in data['summary'][title][subtitle]:
-                        buf.write(f"- **{item}:** {data['summary'][title][subtitle][item]}\n")
+                if isinstance(data.summary[title][subtitle], dict):
+                    for item in data.summary[title][subtitle]:
+                        buf.write(f"- **{item}:** {data.summary[title][subtitle][item]}\n")
                 else:
-                    buf.write(data['summary'][title][subtitle])
+                    buf.write(data.summary[title][subtitle])
                 buf.write("\n\n")
 
     result = buf.getvalue()
@@ -51,76 +62,82 @@ def render_markdown(data: str|dict, output: Path, override: bool = False) -> str
 
     return result
 
-def render_latex_text_escape(text: str) -> str:
+def render_summary_to_latex_text_escape(text: str) -> str:
     return text.replace("&", r"\&").replace("%", r"\%").replace("_", r"\_")
 
-def render_latex_list(buf: io.StringIO, data: list, level: int = 0):
+def render_summary_to_latex_list(buf: io.StringIO, data: list, level: int = 0):
     indent = "  " * level
     buf.write(indent + r"\begin{enumerate}" + "\n")
     for item in data:
         if isinstance(item, str):
-            buf.write(indent + r"  \item " + render_latex_text_escape(item) + "\n")
+            buf.write(indent + r"  \item " + render_summary_to_latex_text_escape(item) + "\n")
         elif isinstance(item, list):
-            render_latex_list(buf, item, level + 1)
+            render_summary_to_latex_list(buf, item, level + 1)
         elif isinstance(item, dict):
-            render_latex_dict(buf, item, level + 1)
+            render_summary_to_latex_dict(buf, item, level + 1)
         else:
             logger.warning(f"render_latex_list(): Unknown type {type(item)} : {item} in list.")
     buf.write(indent + r"\end{enumerate}" + "\n")
 
-def render_latex_dict(buf: io.StringIO, data: dict, level: int = 0):
+def render_summary_to_latex_dict(buf: io.StringIO, data: dict, level: int = 0):
     indent = "  " * level
     buf.write(indent + r"\begin{enumerate}" + "\n")
     for key in data:
         value = data[key]
         if isinstance(value, str):
-            buf.write(indent + r"  \item \textbf{" + key + r"}: " + render_latex_text_escape(value) + "\n")
+            buf.write(indent + r"  \item \textbf{" + key + r"}: " + render_summary_to_latex_text_escape(value) + "\n")
         elif isinstance(value, list):
             buf.write(indent + r"  \item \textbf{" + key + r"}:" + "\n")
-            render_latex_list(buf, value, level + 2)
+            render_summary_to_latex_list(buf, value, level + 2)
         elif isinstance(value, dict):
             buf.write(indent + r"  \item \textbf{" + key + r"}:" + "\n")
-            render_latex_dict(buf, value, level + 2)
+            render_summary_to_latex_dict(buf, value, level + 2)
         else:
             logger.warning(f"render_latex_dict(): Unknown type {type(value)} : {value} in dict.")
     buf.write(indent + r"\end{enumerate}" + "\n")
 
-def render_latex(data: dict|str, template: str, output: Path, override: bool = False) -> str:
-    logger.info(f"Rendering LaTeX to {output}")
+def render_summary_to_latex(data: str|dict|Summary, template: str, output: Path, override: bool = False) -> str:
+    logger.info(f"Rendering Summary to LaTeX ({output})")
+
+    # 所有 data 都转换为目标 Summary 对象
     if isinstance(data, str):
         data = yaml.safe_load(data)
+        data = Summary(**data)
+    elif isinstance(data, dict):
+        data = Summary(**data)
 
     ## 标题
     buf = io.StringIO()
-    if 'title' in data:
-        buf.write(r"\title {\parbox{0.9\textwidth}{\sloppy " + data['title'] + "}}\n")
-    if 'authors' in data:
-        buf.write(r"\author{\parbox{0.9\textwidth}{\sloppy " + data['authors'] + "}}\n")
-    if 'date' in data:
-        buf.write(r"\date{" + data['date'] + "}\n")
-    if 'institution' in data:
-        buf.write(r"\institute{\parbox{0.9\textwidth}{\sloppy " + data['institution'] + "}}\n")
+    metadata = data.metadata
+    if metadata.title:
+        buf.write(r"\title {\parbox{0.9\textwidth}{\sloppy " + metadata.title + "}}\n")
+    if metadata.authors:
+        buf.write(r"\author{\parbox{0.9\textwidth}{\sloppy " + metadata.authors + "}}\n")
+    if metadata.date:
+        buf.write(r"\date{" + metadata.date + "}\n")
+    if metadata.institution:
+        buf.write(r"\institute{\parbox{0.9\textwidth}{\sloppy " + metadata.institution + "}}\n")
     latex = template.replace("|metadata|", buf.getvalue())
     buf.close()
 
     ## 内容
-    num_titles = len(data['summary'])
+    num_titles = len(data.summary)
     left_column = num_titles // 2
 
     buf = io.StringIO()
-    for i, title in enumerate(data['summary'].keys()):
+    for i, title in enumerate(data.summary.keys()):
         if i in (0, left_column):
             buf.write(r"\column{0.5}" + "\n")
-        value = data['summary'][title]
+        value = data.summary[title]
         buf.write(r"\block{" + title + r"}{" + "\n")
         if isinstance(value, list):
-            render_latex_list(buf, value, 1)
+            render_summary_to_latex_list(buf, value, 1)
         elif isinstance(value, dict):
-            render_latex_dict(buf, value, 1)
+            render_summary_to_latex_dict(buf, value, 1)
         elif isinstance(value, str):
             buf.write(value + "\n")
         else:
-            logger.warning(f"render_latex(): Unknown type {type(data['summary'][title])} : {data['summary'][title]} in summary.")
+            logger.warning(f"render_latex(): Unknown type {type(data.summary[title])} : {data['summary'][title]} in summary.")
         buf.write("}\n")
     latex = latex.replace("|content|", buf.getvalue())
 
@@ -132,17 +149,131 @@ def render_latex(data: dict|str, template: str, output: Path, override: bool = F
 
     return latex
 
-def latex_to_pdf(latex_file: Path, output: Path, override: bool = False):
-    if not override and output.exists():
-        logger.warning(f"{output} is exist, please use --override to override it.")
-        return
+DEFAULT_PALETTE = [
+    "#000000",  # 黑色
+    "#FF6F61",  # 鲜艳的珊瑚红
+    "#6B5B95",  # 紫罗兰色
+    "#88B04B",  # 青绿色调的黄绿色
+    "#F7CAC9",  # 粉色调
+    "#92A8D1",  # 浅蓝紫色
+    "#F7786B",  # 鲜艳的粉红
+    "#DE7A22",  # 鲜橙色
+    "#2E8B57",  # 海洋绿
+    "#FFD700",  # 金黄色
+    "#4682B4",  # 钢蓝色
+    "#D9534F",  # 鲜艳的红色
+    "#5BC0DE",  # 浅蓝色
+    "#FFB347",  # 橙黄色
+    "#B39EB5",  # 淡紫色
+    "#E94E77",  # 鲜亮的玫瑰红
+]
 
-    logger.info(f"Converting {latex_file} to {output}")
-    # 由于xelatex直接生成到当前目录，所以需要切换到输出目录
-    current_dir = os.getcwd()
-    os.chdir(output.parent)
-    latex_file = latex_file.relative_to(output.parent)
-    os.system(f"xelatex --shell-escape -interaction=nonstopmode {latex_file}")
-    # 清理临时文件
-    os.system(f"rm -f {latex_file.stem}.aux {latex_file.stem}.log {latex_file.stem}.out")  
-    os.chdir(current_dir)
+class Style(BaseModel):
+    shape: str = 'rect'
+    style: str = 'rounded,filled'
+    fill_color: str = '#FFFFFF'
+    border_color: str = '#000000'
+    font_color: str = '#000000'
+    fontname: str = 'Arial'
+    fontsize: int = 12
+
+def render_mindmap_to_dot(data: str|dict|Mindmap, output: Path, override: bool = False) -> str:
+    '''
+    由 Mindmap 对象生成 DOT 文件，然后调用 Graphviz 生成 PDF 文件
+    '''
+    # 整理输出路径
+    p_dot = output.with_suffix('.dot')
+    p_pdf = output.with_suffix('.pdf')
+
+    logger.info(f"Rendering Mindmap to GraphViz ({p_pdf})")
+
+    # 所有 data 都转换为目标 Mindmap 对象
+    if isinstance(data, str):
+        data = yaml.safe_load(data)
+        data = Mindmap(**data)
+    elif isinstance(data, dict):
+        data = Mindmap(**data)
+
+    # 开始渲染 DOT
+    dot = Digraph(comment=data.metadata.title)
+    dot.attr(rankdir='LR', layout='dot')
+    dot.node_attr.update(shape='rect', style='rounded,filled', color='white', fontname='Arial', fontsize='12')
+    dot.edge_attr.update(dir='none', color='#000000', penwidth='2', headport='w', tailport='e')
+
+    palette = DEFAULT_PALETTE.copy()
+    palette.reverse()
+    def calculate_node_style(level: int, parent_style: Style = Style()) -> Style:
+        nonlocal palette
+        if level <= 1:
+            # 第一级决定颜色，每个分支颜色不同
+            style = parent_style.model_copy()
+            current_color = palette.pop()
+            logger.debug(f"calculate_node_style(): level={level}, current_color={current_color}, parent_color={parent_style.fill_color}")
+            style.fill_color = current_color
+            style.border_color = current_color
+            luma = color_luminance(current_color)
+            if luma < 0.6:
+                style.font_color = '#FFFFFF'
+            else:
+                style.font_color = '#000000'
+        else:
+            # 其他级别，颜色逐渐淡化
+            style = parent_style.model_copy()
+            current_color = color_gradient(parent_style.fill_color, '#FFFFFF', 0.5)
+            style.fill_color = current_color
+            style.border_color = current_color
+            luma = color_luminance(current_color)
+            if luma < 0.5:
+                style.font_color = '#FFFFFF'
+            else:
+                style.font_color = '#000000'
+        return style
+        
+    max_id = 0
+    def dfs(node: str|list|dict, node_id:int = 0, node_level:int = 0, parent_id:int = None, parent_style: Style = Style()):
+        nonlocal max_id
+        
+        if isinstance(node, str):
+            # 叶子节点
+            node_style = calculate_node_style(node_level, parent_style)
+            dot.node(f"node_{node_id}", node, fillcolor=node_style.fill_color, fontcolor=node_style.font_color, color=node_style.border_color)
+            if parent_id is not None:
+                dot.edge(f"node_{parent_id}", f"node_{node_id}", color=node_style.fill_color)
+        elif isinstance(node, list):
+            # 列表节点
+            for item in node:
+                max_id += 1
+                node_style = calculate_node_style(node_level, parent_style)
+                dot.node(f"node_{max_id}", "", fillcolor=node_style.fill_color, fontcolor=node_style.font_color, color=node_style.border_color)
+                if parent_id is not None:
+                    dot.edge(f"node_{parent_id}", f"node_{max_id}", color=node_style.fill_color)
+                dfs(item, max_id, node_level+1, node_id, node_style)
+        elif isinstance(node, dict):
+            # 处理dict的每个key-value对
+            for key in node:
+                # 为key创建节点
+                max_id += 1
+                key_node_id = max_id
+                node_style = calculate_node_style(node_level, parent_style)
+                dot.node(f"node_{key_node_id}", key, fillcolor=node_style.fill_color, fontcolor=node_style.font_color, color=node_style.border_color)
+                if parent_id is not None:
+                    dot.edge(f"node_{parent_id}", f"node_{key_node_id}", color=node_style.fill_color)
+                
+                # 递归处理value,使用新的节点id
+                max_id += 1
+                dfs(node[key], max_id, node_level+1, key_node_id, node_style)
+        else:
+            logger.warning(f"dfs(): Unknown type {type(node)} : {node} in mindmap.")
+
+    # root
+    root = {data.metadata.title: data.mindmap}
+    dfs(root, 0, 0)
+
+    # 输出
+    logger.info(f"render_mindmap_to_dot(): dot: {p_dot}, pdf: {p_pdf}")
+    dot.render(p_dot, format='pdf', outfile=p_pdf)
+    return dot.source
+
+def render_mindmap_to_pdf(data: str|dict|Mindmap, output: Path, override: bool = False) -> str:
+    dot = render_mindmap_to_dot(data, output.with_suffix('.dot'), override)
+    return dot
