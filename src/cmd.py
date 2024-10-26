@@ -8,13 +8,13 @@ from pydantic import BaseModel
 from .utils import download_paper
 from .pdf_parser import read_pdf
 from .engine import Engine
-from .config import AppConfig, load_config, DEFAULT_CONFIG_YAML
+from .config import AppConfig
 
 class Context(BaseModel):
     config: AppConfig
     engine: Engine
 
-def setup_logger(debug: bool):
+def logger_init(debug: bool):
     if debug:
         logger.remove()
         logger.add(sys.stderr, level='DEBUG')
@@ -24,13 +24,13 @@ def setup_logger(debug: bool):
 
 # 顶层命令
 @click.group()
-@click.option('--config', type=click.Path(exists=True), default=DEFAULT_CONFIG_YAML, help='Path to the configuration file')
+@click.option('--config', type=click.Path(exists=True), default=None, help='Path to the configuration file')
 @click.option('--debug', is_flag=True, help='Enable debug mode')
 @click.pass_context
 def main(ctx, config, debug):
+    logger_init(debug)
     load_dotenv()
-    cfg = load_config(config)
-    setup_logger(debug)
+    cfg = AppConfig.create(config)
     ctx.obj = Context(config=cfg, engine=Engine(cfg))
 
 # summary子命令

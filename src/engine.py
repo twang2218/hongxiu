@@ -1,5 +1,4 @@
 from pathlib import Path
-import re
 from typing import Optional, Dict, List, Callable
 from loguru import logger
 from pydantic import BaseModel
@@ -8,13 +7,11 @@ from pydantic import BaseModel
 from langchain_core.runnables.base import RunnableSequence
 from langchain.output_parsers import YamlOutputParser
 
-import yaml
-
-from .render import render_mindmap_to_pdf, render_summary_to_markdown, render_summary_to_latex
-from .config import AppConfig, load_template
+from .render import render_mindmap_to_pdf, render_summary_to_latex
+from .config import AppConfig
 from .model import Figure, Figures, Summary, Mindmap
 from .llm import create_chain
-from .utils import latex_to_pdf, yaml_dump
+from .utils import latex_to_pdf, yaml_dump, yaml_load
 
 
 class Engine(BaseModel):
@@ -53,19 +50,15 @@ class Engine(BaseModel):
     def summarize(self, content: str, output: str, override: bool = False) -> Summary:
         po = Path(output)
         p_yaml = po.parent / (po.stem + '.yaml')
-        p_md = po.parent / (po.stem + '.md')
         p_latex = po.parent / (po.stem + '.tex')
         p_pdf = po.parent / (po.stem + '.pdf')
 
         # 如果文件已经存在，且不覆盖，则直接返回.md文件内容
         if p_yaml.exists() and not override:
-            summary = p_yaml.read_text(encoding='utf-8')
-            summary = yaml.safe_load(summary)
-            summary = Summary(**summary)
+            summary = Summary(**yaml_load(p_yaml))
         else:
-            logger.info(f"Generating Summary to {p_yaml}")
+            logger.info(f"Generating Summary ({p_yaml})")
             summary = self.summary_chain.invoke({'text': content})
-            # summary = remove_markdown_wrapper(summary)
 
         # 调用钩子函数
         if self.hooks["on_summary"]:
@@ -77,9 +70,7 @@ class Engine(BaseModel):
             with open(p_yaml, 'w', encoding='utf-8') as f:
                 f.write(yaml_dump(summary))
 
-        render_summary_to_markdown(summary, p_md, override)
-        template = load_template()
-        render_summary_to_latex(summary, template, p_latex, override)
+        render_summary_to_latex(summary, p_latex, override=override)
         latex_to_pdf(p_latex, p_pdf, override)
         return summary
 
@@ -92,7 +83,7 @@ class Engine(BaseModel):
         if p_yaml.exists():
             if not override:
                 logger.warning(f"{p_figures_dir} is exist, please use --override to override it.")
-                figures = Figures(**yaml.safe_load(p_yaml.read_text(encoding='utf-8')))
+                figures = Figures(**yaml_load(p_yaml))
                 return figures.figures
             else:
                 p_yaml.unlink()
@@ -100,10 +91,11 @@ class Engine(BaseModel):
         if not po.exists():
             po.mkdir(parents=True)
 
-        logger.info(f"Generating Figures to {p_yaml}")
+        logger.info(f"Generating Figures ({p_yaml})")
         figures = self.figures_chain.invoke({'text': content})
+
         with open(p_yaml, 'w', encoding='utf-8') as f:
-            f.write(yaml.dump(figures.dict(), default_flow_style=False, allow_unicode=True))
+            f.write(yaml_dump(figures))
         return figures.figures
 
     def mindmap(self, content: str, output: str, override: bool = False) -> Mindmap:
@@ -115,7 +107,7 @@ class Engine(BaseModel):
         if p_yaml.exists():
             if not override:
                 logger.warning(f"{p_yaml} is exist, please use --override to override it.")
-                return Mindmap(**yaml.safe_load(p_yaml.read_text(encoding='utf-8')))
+                return Mindmap(**yaml_load(p_yaml))
             else:
                 p_yaml.unlink()
     
@@ -125,7 +117,7 @@ class Engine(BaseModel):
                 return None
 
         # 调用模型生成脑图
-        logger.info(f"Generating Mindmap YAML to {p_yaml}")
+        logger.info(f"Generating Mindmap YAML ({p_yaml})")
         mindmap = self.mindmap_chain.invoke({'text': content})
         with open(p_yaml, 'w', encoding='utf-8') as f:
             f.write(yaml_dump(mindmap))
@@ -136,7 +128,6 @@ class Engine(BaseModel):
                     hook(mindmap)
 
         # 转换脑图 为 PDF
-        logger.info(f"Converting Mindmap YAML to PDF {p_pdf}")
         render_mindmap_to_pdf(mindmap, p_pdf, override)
     
         return mindmap

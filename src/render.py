@@ -1,17 +1,16 @@
-from collections import deque
 import io
-import os
 from pathlib import Path
-from typing import List, Optional
 
 from graphviz import Digraph
 from loguru import logger
 from pydantic import BaseModel
 import yaml
 
-from .utils import color_gradient, color_luminance, dot_to_pdf
+from .utils import color_gradient, color_luminance
 from .model import Mindmap, Summary
 
+LATEX_TEMPLATE_FILE = "poster-template.tex"
+DEFAULT_TEMPLATE_FILE = Path(__file__).parent.parent / "config" / LATEX_TEMPLATE_FILE
 
 def render_summary_to_markdown(data: str|dict|Summary, output: Path, override: bool = False) -> str:
     logger.info(f"Rendering Summary to Markdown ({output})")
@@ -25,17 +24,18 @@ def render_summary_to_markdown(data: str|dict|Summary, output: Path, override: b
 
     # 开始渲染 Markdown
     buf = io.StringIO()
-    buf.write(f"# {data.title}\n\n")
-    if data.authors:
-        buf.write(f"**作者：** {data.authors}  \n")
-    if data.date:
-        buf.write(f"**日期：** {data.date}  \n")
-    if data.institution:
-        buf.write(f"**机构：** {data.institution}  \n")
+    metadata = data.metadata
+    buf.write(f"# {metadata.title}\n\n")
+    if metadata.authors:
+        buf.write(f"**作者：** {metadata.authors}  \n")
+    if metadata.date:
+        buf.write(f"**日期：** {metadata.date}  \n")
+    if metadata.institution:
+        buf.write(f"**机构：** {metadata.institution}  \n")
 
     buf.write("\n")
-    if data.tldr:
-        buf.write(f"## 摘要\n\n{data.tldr}\n\n")
+    if metadata.tldr:
+        buf.write(f"## 摘要\n\n{metadata.tldr}\n\n")
     
     if data.summary:
         buf.write("## 总结\n\n")
@@ -96,7 +96,7 @@ def render_summary_to_latex_dict(buf: io.StringIO, data: dict, level: int = 0):
             logger.warning(f"render_latex_dict(): Unknown type {type(value)} : {value} in dict.")
     buf.write(indent + r"\end{enumerate}" + "\n")
 
-def render_summary_to_latex(data: str|dict|Summary, template: str, output: Path, override: bool = False) -> str:
+def render_summary_to_latex(data: str|dict|Summary, output: Path, template_file: Path = DEFAULT_TEMPLATE_FILE, override: bool = False) -> str:
     logger.info(f"Rendering Summary to LaTeX ({output})")
 
     # 所有 data 都转换为目标 Summary 对象
@@ -105,6 +105,9 @@ def render_summary_to_latex(data: str|dict|Summary, template: str, output: Path,
         data = Summary(**data)
     elif isinstance(data, dict):
         data = Summary(**data)
+
+    # 读取模板
+    template = template_file.read_text(encoding='utf-8')
 
     ## 标题
     buf = io.StringIO()
@@ -117,6 +120,7 @@ def render_summary_to_latex(data: str|dict|Summary, template: str, output: Path,
         buf.write(r"\date{" + metadata.date + "}\n")
     if metadata.institution:
         buf.write(r"\institute{\parbox{0.9\textwidth}{\sloppy " + metadata.institution + "}}\n")
+
     latex = template.replace("|metadata|", buf.getvalue())
     buf.close()
 
@@ -185,7 +189,7 @@ def render_mindmap_to_dot(data: str|dict|Mindmap, output: Path, override: bool =
     p_dot = output.with_suffix('.dot')
     p_pdf = output.with_suffix('.pdf')
 
-    logger.info(f"Rendering Mindmap to GraphViz ({p_pdf})")
+    logger.info(f"Rendering Mindmap via GraphViz ({p_pdf})")
 
     # 所有 data 都转换为目标 Mindmap 对象
     if isinstance(data, str):
@@ -208,7 +212,6 @@ def render_mindmap_to_dot(data: str|dict|Mindmap, output: Path, override: bool =
             # 第一级决定颜色，每个分支颜色不同
             style = parent_style.model_copy()
             current_color = palette.pop()
-            logger.debug(f"calculate_node_style(): level={level}, current_color={current_color}, parent_color={parent_style.fill_color}")
             style.fill_color = current_color
             style.border_color = current_color
             luma = color_luminance(current_color)
@@ -270,7 +273,7 @@ def render_mindmap_to_dot(data: str|dict|Mindmap, output: Path, override: bool =
     dfs(root, 0, 0)
 
     # 输出
-    logger.info(f"render_mindmap_to_dot(): dot: {p_dot}, pdf: {p_pdf}")
+    logger.debug(f"render_mindmap_to_dot(): dot: {p_dot}, pdf: {p_pdf}")
     dot.render(p_dot, format='pdf', outfile=p_pdf)
     return dot.source
 

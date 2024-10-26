@@ -1,6 +1,5 @@
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser, BaseOutputParser
-from langchain.output_parsers import YamlOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_community.llms import Tongyi
