@@ -2,7 +2,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser, BaseOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
-from langchain_community.llms import Tongyi
+# from langchain_community.llms import Tongyi
 from langchain_community.chat_models.tongyi import ChatTongyi
 
 def create_model(model_name: str) -> BaseChatModel:

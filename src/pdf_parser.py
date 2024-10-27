@@ -5,10 +5,16 @@ from pathlib import Path
 from loguru import logger
 
 class PdfParserType(Enum):
-    PYMUPDF = 1
-    PYPDF2 = 2
-    PIX2TEXT = 3
+    PYMUPDF = "pymupdf"
+    PYPDF2 = "pypdf2"
+    PIX2TEXT = "pix2text"
 
+    @classmethod
+    def from_string(cls, s:str) -> 'PdfParserType':
+        try:
+            return getattr(cls, s.upper())
+        except AttributeError:
+            raise ValueError(f"Unknown PDF parser: {s}")
 
 def check_set_gpu(override=None):
     try:

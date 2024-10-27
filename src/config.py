@@ -1,6 +1,7 @@
 from pathlib import Path
 from pydantic import BaseModel, Field
 
+from .pdf_parser import PdfParserType
 from .utils import yaml_load
 
 DEFAULT_CONFIG_YAML = Path(__file__).parent.parent / "config" / "config.yaml"
@@ -19,6 +20,7 @@ class ChainsConfig(BaseModel):
 class AppConfig(BaseModel):
     chains: ChainsConfig = Field(default_factory=ChainsConfig)
     debug: bool = Field(False)
+    pdf_parser: PdfParserType = Field(PdfParserType.PYMUPDF)
 
     @classmethod
     def create(cls, filename: Path = None) -> "AppConfig":

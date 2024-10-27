@@ -11,7 +11,7 @@ import yaml
 def download_paper(paper: str, output_dir: str) -> Path:
     import requests
     re_arxiv = re.compile(r"\d+\.\d+")  # arXiv ID
-    if paper.startswith("http"):
+    if paper.startswith("http") or paper.startswith("https"):
         url = paper
     elif paper.lower().startswith("arXiv:"):
         id = paper.split(":")[1]

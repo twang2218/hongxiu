@@ -6,7 +6,7 @@ from loguru import logger
 from pydantic import BaseModel
 
 from .utils import download_paper
-from .pdf_parser import read_pdf
+from .pdf_parser import PdfParserType
 from .engine import Engine
 from .config import AppConfig
 
@@ -14,7 +14,7 @@ class Context(BaseModel):
     config: AppConfig
     engine: Engine
 
-def logger_init(debug: bool):
+def init_logger(debug: bool):
     if debug:
         logger.remove()
         logger.add(sys.stderr, level='DEBUG')
@@ -22,24 +22,34 @@ def logger_init(debug: bool):
         logger.remove()
         logger.add(sys.stderr, level='INFO')
 
-# 顶层命令
-@click.group()
-@click.option('--config', type=click.Path(exists=True), default=None, help='Path to the configuration file')
-@click.option('--debug', is_flag=True, help='Enable debug mode')
-@click.pass_context
-def main(ctx, config, debug):
-    logger_init(debug)
+class BaseCommand(click.core.Command):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.params.insert(0, click.core.Option(('--override',), is_flag=True, help='覆盖已有文件'))
+        self.params.insert(0, click.core.Option(('--pdf-parser',), type=click.Choice(['pymupdf', 'pypdf2', 'pix2text']), default='pymupdf', help='PDF parser'))
+        self.params.insert(0, click.core.Option(('--debug',), is_flag=True, help='Enable debug mode'))
+        self.params.insert(0, click.core.Option(('--config',), type=click.Path(exists=True), default=None, help='Path to the configuration file'))
+
+def init_command(config, debug, pdf_parser, override):
+    init_logger(debug)
     load_dotenv()
     cfg = AppConfig.create(config)
-    ctx.obj = Context(config=cfg, engine=Engine(cfg))
+    cfg.pdf_parser = PdfParserType.from_string(pdf_parser)
+    logger.debug(f"init_command(): config: {config}, debug: {debug}, pdf_parser: {pdf_parser}, override: {override}")
+    cfg.debug = debug
+    return cfg
 
-# summary子命令
-@main.command()
+@click.group()
+def main():
+    pass
+
+@main.command(cls=BaseCommand)
 @click.argument('input_path', type=str)
 @click.option('--output_dir', type=click.Path(), default=None, help='保存总结的目录')
-@click.option('--override', is_flag=True, help='覆盖已有文件')
-@click.pass_context
-def summary(ctx, input_path, output_dir, override):
+def summary(config, debug, pdf_parser, override, input_path, output_dir):
+    cfg = init_command(config, debug, pdf_parser, override)
+    engine = Engine(cfg)
+
     pi = Path(input_path)
     if not pi.exists():
         paper = download_paper(input_path, output_dir)
@@ -55,20 +65,18 @@ def summary(ctx, input_path, output_dir, override):
         po.mkdir(parents=True)
 
     for f in inputs:
-        content = read_pdf(f)
-        output_filename = f.stem + '.summary.md'
+        output_filename = f.stem + '.summary.pdf'
         output_fullpath = po / output_filename
         logger.debug(f"engine.summarize(): input: {f}, output: {output_fullpath}")
-        ctx.obj.engine.summarize(content, output_fullpath, override)
+        engine.summarize(f, output_fullpath, override)
 
-
-# mindmap子命令
-@main.command()
+@main.command(cls=BaseCommand)
 @click.argument('input_path', type=str)
 @click.option('--output_dir', type=click.Path(), default=None, help='保存脑图的目录')
-@click.option('--override', is_flag=True, help='覆盖已有文件')
-@click.pass_context
-def mindmap(ctx, input_path, output_dir, override):
+def mindmap(config, debug, pdf_parser, override, input_path, output_dir):
+    cfg = init_command(config, debug, pdf_parser, override)
+    engine = Engine(cfg)
+
     pi = Path(input_path)
     if not pi.exists():
         paper = download_paper(input_path, output_dir)
@@ -83,27 +91,22 @@ def mindmap(ctx, input_path, output_dir, override):
     if not po.exists():
         po.mkdir(parents=True)
     for f in inputs:
-        content = read_pdf(f)
         output_pdf_filename = f.stem + '.mindmap.pdf'
         output_pdf_fullpath = po / output_pdf_filename
         logger.debug(f"engine.mindmap(): input: {f}, output: {output_pdf_fullpath}")
-        ctx.obj.engine.mindmap(content, output_pdf_fullpath, override)
+        engine.mindmap(f, output_pdf_fullpath, override)
 
-# dev子命令
-@main.command()
+@main.command(cls=BaseCommand)
 @click.argument('input_path', type=click.Path(exists=True))
-@click.pass_context
-def dev(ctx, input_path):
-    from .pdf_parser import PdfParserType, read_pdf
-    engine = ctx.obj.engine
+def dev(config, debug, pdf_parser, override, input_path):
+    cfg = init_command(config, debug, pdf_parser, override)
+    engine = Engine(cfg)
 
     pi = Path(input_path)
     po = pi.parent / pi.stem
-    content = read_pdf(input_path, pdf_parser=PdfParserType.PIX2TEXT, override=True)
-    figures = engine.figures(content, output=po, override=True)
+    figures = engine.figures(input_path, output=po, override=True)
     for f in figures:
         print(f"Figure:  [{f.type}]\t{f.link}\t{f.desc}")
-
 
 if __name__ == '__main__':
     main()

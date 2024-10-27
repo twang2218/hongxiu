@@ -173,3 +173,4 @@ chains:
       {text}
       ---
 debug: false
+pdf_parser: pymupdf

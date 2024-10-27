@@ -7,10 +7,11 @@ from pydantic import BaseModel
 from langchain_core.runnables.base import RunnableSequence
 from langchain.output_parsers import YamlOutputParser
 
-from .render import render_mindmap_to_pdf, render_summary_to_latex
 from .config import AppConfig
-from .model import Figure, Figures, Summary, Mindmap
 from .llm import create_chain
+from .model import Figure, Figures, Summary, Mindmap
+from .pdf_parser import PdfParserType, read_pdf
+from .render import render_mindmap_to_pdf, render_summary_to_latex
 from .utils import latex_to_pdf, yaml_dump, yaml_load
 
 
@@ -23,14 +24,17 @@ class Engine(BaseModel):
     summary_chain: Optional[RunnableSequence] = None
     mindmap_chain: Optional[RunnableSequence] = None
     figures_chain: Optional[RunnableSequence] = None
+    pdf_parser_type: PdfParserType = PdfParserType.PYMUPDF
 
     # pylint: disable=no-member
     def __init__(self, config: dict | AppConfig, **kwargs):
         super().__init__(**kwargs)
+        # 整理配置
         if isinstance(config, dict):
             self.config = AppConfig(**config)
         else:
             self.config = config
+        # 初始化链
         self.summary_chain = create_chain(
             self.config.chains.summary.engine_name,
             self.config.chains.summary.template,
@@ -46,12 +50,18 @@ class Engine(BaseModel):
             self.config.chains.figures.template,
             output_parser=YamlOutputParser(pydantic_object=Figures)
         )
+        # 初始化PDF解析器
+        self.pdf_parser_type = self.config.pdf_parser
 
-    def summarize(self, content: str, output: str, override: bool = False) -> Summary:
+    def summarize(self, content: str|Path, output: str, override: bool = False) -> Summary:
         po = Path(output)
         p_yaml = po.parent / (po.stem + '.yaml')
         p_latex = po.parent / (po.stem + '.tex')
         p_pdf = po.parent / (po.stem + '.pdf')
+
+        # 如果content是Path对象，说明其内不是文本内容，因此需要读取PDF文件
+        if isinstance(content, Path) and content.suffix == ".pdf":
+            content = read_pdf(content, pdf_parser=self.pdf_parser_type, override=override)
 
         # 如果文件已经存在，且不覆盖，则直接返回.md文件内容
         if p_yaml.exists() and not override:
@@ -74,10 +84,14 @@ class Engine(BaseModel):
         latex_to_pdf(p_latex, p_pdf, override)
         return summary
 
-    def figures(self, content: str, output: str, override: bool = False) -> List[Figure]:
+    def figures(self, content: str|Path, output: str, override: bool = False) -> List[Figure]:
         po = Path(output)
         p_figures_dir = po / "figures"
         p_yaml = po / "figures.yaml"
+
+        # 如果content是Path对象，说明其内不是文本内容，因此需要读取PDF文件
+        if isinstance(content, Path) and content.suffix == ".pdf":
+            content = read_pdf(content, pdf_parser=self.pdf_parser_type, override=override)
 
         # 如果中间文件已经存在，且不覆盖，则直接返回.md文件内容
         if p_yaml.exists():
@@ -98,10 +112,14 @@ class Engine(BaseModel):
             f.write(yaml_dump(figures))
         return figures.figures
 
-    def mindmap(self, content: str, output: str, override: bool = False) -> Mindmap:
+    def mindmap(self, content: str|Path, output: str, override: bool = False) -> Mindmap:
         p_pdf = Path(output)
         p_yaml = p_pdf.parent / (p_pdf.stem + '.yaml')
         # p_markdown = p_pdf.parent / (p_pdf.stem + '.md')
+
+        # 如果content是Path对象，说明其内不是文本内容，因此需要读取PDF文件
+        if isinstance(content, Path) and content.suffix == ".pdf":
+            content = read_pdf(content, pdf_parser=self.pdf_parser_type, override=override)
 
         # 检查中间文件是否存在
         if p_yaml.exists():
