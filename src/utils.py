@@ -88,3 +88,24 @@ def color_gradient(color_from: str, color_to: str, percentage: float) -> str:
     a = int(a1 + (a2 - a1) * percentage)
     return f"#{r:02X}{g:02X}{b:02X}{a:02X}"
 
+
+def check_set_gpu(override=None):
+    try:
+        import torch
+        if override is None:
+            if torch.cuda.is_available():
+                device = torch.device('cuda')
+                print(f"Using GPU: {torch.cuda.get_device_name(0)}")
+            elif torch.backends.mps.is_available():
+                device = torch.device('mps')
+                print(f"Using MPS: {torch.backends.mps.is_available()}")
+            else:
+                device = torch.device('cpu')
+                print(f"Using CPU: {torch.device('cpu')}")
+        else:
+            device = torch.device(override)
+        return device
+    except ImportError as e:
+        logger.error("Please install pytorch, e.g., pip install torch")
+        raise e
+

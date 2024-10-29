@@ -16,11 +16,14 @@ class ChainsConfig(BaseModel):
     summary: ChainConfig = Field(default_factory=ChainConfig)
     mindmap: ChainConfig = Field(default_factory=ChainConfig)
     figures: ChainConfig = Field(default_factory=ChainConfig)
+    insert_figures: ChainConfig = Field(default_factory=ChainConfig)
 
 class AppConfig(BaseModel):
-    chains: ChainsConfig = Field(default_factory=ChainsConfig)
-    debug: bool = Field(False)
+    engine_name: str = Field("gpt-4o-mini", alias="model_name")
+    lang: str = Field("中文")
     pdf_parser: PdfParserType = Field(PdfParserType.PYMUPDF)
+    debug: bool = Field(False)
+    chains: ChainsConfig = Field(default_factory=ChainsConfig)
 
     @classmethod
     def create(cls, filename: Path = None) -> "AppConfig":

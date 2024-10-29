@@ -3,6 +3,9 @@ from enum import Enum
 from pathlib import Path
 
 from loguru import logger
+from pydantic import BaseModel
+
+from .utils import check_set_gpu
 
 class PdfParserType(Enum):
     PYMUPDF = "pymupdf"
@@ -16,25 +19,41 @@ class PdfParserType(Enum):
         except AttributeError:
             raise ValueError(f"Unknown PDF parser: {s}")
 
-def check_set_gpu(override=None):
-    try:
-        import torch
-        if override is None:
-            if torch.cuda.is_available():
-                device = torch.device('cuda')
-                print(f"Using GPU: {torch.cuda.get_device_name(0)}")
-            elif torch.backends.mps.is_available():
-                device = torch.device('mps')
-                print(f"Using MPS: {torch.backends.mps.is_available()}")
-            else:
-                device = torch.device('cpu')
-                print(f"Using CPU: {torch.device('cpu')}")
+class PdfParser(BaseModel):
+    type: PdfParserType
+
+    def read_pdf(self, filename: str, override:bool = True) -> str:
+        pass
+
+    def get_type(self) -> PdfParserType:
+        return self.type
+
+    @classmethod
+    def create(cls, type: PdfParserType = PdfParserType.PYMUPDF) -> 'PdfParser':
+        if type == PdfParserType.PYMUPDF:
+            return PdfParserPymupdf(type=type)
+        elif type == PdfParserType.PYPDF2:
+            return PdfParserPypdf2(type=type)
+        elif type == PdfParserType.PIX2TEXT:
+            return PdfParserPix2Text(type=type)
         else:
-            device = torch.device(override)
-        return device
-    except ImportError as e:
-        logger.error("Please install pytorch, e.g., pip install torch")
-        raise e
+            raise ValueError(f"Unknown PDF parser: {type}")
+
+class PdfParserPymupdf(PdfParser):
+    type: PdfParserType = PdfParserType.PYMUPDF
+    def read_pdf(self, filename: str, override:bool = True) -> str:
+        return read_pdf_pymupdf(filename, override=override)
+
+class PdfParserPypdf2(PdfParser):
+    type: PdfParserType = PdfParserType.PYPDF2
+    def read_pdf(self, filename: str, override:bool = True) -> str:
+        return read_pdf_pypdf2(filename, override=override)
+
+class PdfParserPix2Text(PdfParser):
+    type: PdfParserType = PdfParserType.PIX2TEXT
+    def read_pdf(self, filename: str, override:bool = True) -> str:
+        return read_pdf_pix2text(filename, override=override)
+
 
 def read_pdf_pymupdf(filename: str, override:bool = True) -> str:
     try:

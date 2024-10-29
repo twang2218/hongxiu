@@ -1,5 +1,7 @@
 import io
 from pathlib import Path
+import re
+from typing import List
 
 from graphviz import Digraph
 from loguru import logger
@@ -62,15 +64,39 @@ def render_summary_to_markdown(data: str|dict|Summary, output: Path, override: b
 
     return result
 
+def clean_key(key: str) -> str:
+    if key.startswith("(") and key.endswith(")"):
+        key = key.rstrip(")").lstrip("(")
+    if key.startswith("[") and key.endswith("]"):
+        key = key.rstrip("]").lstrip("[")
+    if key.startswith('"') and key.endswith('"'):
+        key = key.rstrip('"').lstrip('"')
+    return key
+
+def render_summary_to_latex_image(image: str) -> str:
+        return r"""
+            \begin{center}
+                \includegraphics[width=0.35\textwidth]{""" + image + r"""}
+            \end{center}
+        """
+
 def render_summary_to_latex_text_escape(text: str) -> str:
     return text.replace("&", r"\&").replace("%", r"\%").replace("_", r"\_")
+
+def render_summary_to_latex_text(text: str) -> str:
+    text = render_summary_to_latex_text_escape(text)
+    # text = render_summary_to_latex_image(text)
+    return text
 
 def render_summary_to_latex_list(buf: io.StringIO, data: list, level: int = 0):
     indent = "  " * level
     buf.write(indent + r"\begin{enumerate}" + "\n")
     for item in data:
         if isinstance(item, str):
-            buf.write(indent + r"  \item " + render_summary_to_latex_text_escape(item) + "\n")
+            if item.startswith("IMAGE|"):
+                buf.write(indent + render_summary_to_latex_image(item[6:]) + "\n")
+            else:
+                buf.write(indent + r"  \item " + render_summary_to_latex_text(item) + "\n")
         elif isinstance(item, list):
             render_summary_to_latex_list(buf, item, level + 1)
         elif isinstance(item, dict):
@@ -85,18 +111,21 @@ def render_summary_to_latex_dict(buf: io.StringIO, data: dict, level: int = 0):
     for key in data:
         value = data[key]
         if isinstance(value, str):
-            buf.write(indent + r"  \item \textbf{" + key + r"}: " + render_summary_to_latex_text_escape(value) + "\n")
+            if key == "IMAGE":
+                buf.write(indent + render_summary_to_latex_image(value) + "\n")
+            else:
+                buf.write(indent + r"  \item \textbf{" + clean_key(key) + r"}: " + render_summary_to_latex_text(value) + "\n")
         elif isinstance(value, list):
-            buf.write(indent + r"  \item \textbf{" + key + r"}:" + "\n")
+            buf.write(indent + r"  \item \textbf{" + clean_key(key) + r"}:" + "\n")
             render_summary_to_latex_list(buf, value, level + 2)
         elif isinstance(value, dict):
-            buf.write(indent + r"  \item \textbf{" + key + r"}:" + "\n")
+            buf.write(indent + r"  \item \textbf{" + clean_key(key) + r"}:" + "\n")
             render_summary_to_latex_dict(buf, value, level + 2)
         else:
             logger.warning(f"render_latex_dict(): Unknown type {type(value)} : {value} in dict.")
     buf.write(indent + r"\end{enumerate}" + "\n")
 
-def render_summary_to_latex(data: str|dict|Summary, output: Path, template_file: Path = DEFAULT_TEMPLATE_FILE, override: bool = False) -> str:
+def render_summary_to_latex(data: str|dict|Summary, output: Path, figures: List[Path] = [], template_file: Path = DEFAULT_TEMPLATE_FILE, override: bool = False) -> str:
     logger.info(f"Rendering Summary to LaTeX ({output})")
 
     # 所有 data 都转换为目标 Summary 对象
@@ -124,6 +153,7 @@ def render_summary_to_latex(data: str|dict|Summary, output: Path, template_file:
     latex = template.replace("|metadata|", buf.getvalue())
     buf.close()
 
+
     ## 内容
     num_titles = len(data.summary)
     left_column = num_titles // 2
@@ -132,6 +162,7 @@ def render_summary_to_latex(data: str|dict|Summary, output: Path, template_file:
     for i, title in enumerate(data.summary.keys()):
         if i in (0, left_column):
             buf.write(r"\column{0.5}" + "\n")
+
         value = data.summary[title]
         buf.write(r"\block{" + title + r"}{" + "\n")
         if isinstance(value, list):
