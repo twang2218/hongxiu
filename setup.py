@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name="hongxiu",
     version="0.1.0",
-    description="A tool for converting Markdown to mindmaps and summarizing PDFs",
+    description="A Python tool for research paper reading assistance.",
     author="Tao Wang",
     author_email="twang2218@gmail.com",
     url="https://github.com/twang2218/hongxiu",  # 项目的URL
