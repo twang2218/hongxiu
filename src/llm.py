@@ -7,6 +7,8 @@ from langchain_openai import ChatOpenAI
 from langchain_community.chat_models.tongyi import ChatTongyi
 from portkey_ai import createHeaders, PORTKEY_GATEWAY_URL
 
+from .config import TemplateConfig
+
 def create_model(model_name: str) -> BaseChatModel:
     if model_name.startswith("qwen"):
         portkey_headers = createHeaders(api_key=os.environ.get("PORTKEY_API_KEY"), provider="openai")
@@ -16,13 +18,13 @@ def create_model(model_name: str) -> BaseChatModel:
         portkey_headers = createHeaders(api_key=os.environ.get("PORTKEY_API_KEY"), provider="openai")
         return ChatOpenAI(model = model_name, base_url=PORTKEY_GATEWAY_URL, default_headers=portkey_headers)
 
-def create_chain(model_name: str, template: str, output_parser: BaseOutputParser = StrOutputParser()) -> ChatPromptTemplate:
+def create_chain(model_name: str, template: TemplateConfig, output_parser: BaseOutputParser = StrOutputParser()) -> ChatPromptTemplate:
     model = create_model(model_name)
     # print("== model_name ==:", model_name)
     # print("== template ==:\n", template)
     prompt = ChatPromptTemplate.from_messages([
-            ("user", template),
-            # ("user", "{text}")
+            ("system", template.system),
+            ("user", template.user),
         ])
     chain = prompt | model | output_parser
     return chain

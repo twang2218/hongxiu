@@ -6,11 +6,13 @@ from .utils import yaml_load
 
 DEFAULT_CONFIG_YAML = Path(__file__).parent.parent / "config" / "config.yaml"
 
+class TemplateConfig(BaseModel):
+    system: str = Field("", description="The system template")
+    user: str = Field("", description="The user template")
+
 class ChainConfig(BaseModel):
     engine_name: str = Field("", alias="model_name", description="The name of the model")
-    template: str = Field("", description="The template used by the chain")
-    class Config:
-        protected_namespaces = ()
+    template: TemplateConfig = Field(default_factory=TemplateConfig)
 
 class ChainsConfig(BaseModel):
     summary: ChainConfig = Field(default_factory=ChainConfig)

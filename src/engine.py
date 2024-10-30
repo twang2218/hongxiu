@@ -36,25 +36,24 @@ class Engine(BaseModel):
         else:
             self.config = config
         # 初始化链
-        logger.debug(f"Lang: {self.config.lang}")
         self.summary_chain = create_chain(
             self.config.chains.summary.engine_name if self.config.chains.summary.engine_name else self.config.engine_name,
-            self.config.chains.summary.template.replace("{lang}", self.config.lang),
+            self.config.chains.summary.template,
             output_parser=YamlOutputParser(pydantic_object=Summary)
         )
         self.mindmap_chain = create_chain(
             self.config.chains.mindmap.engine_name if self.config.chains.mindmap.engine_name else self.config.engine_name,
-            self.config.chains.mindmap.template.replace("{lang}", self.config.lang),
+            self.config.chains.mindmap.template,
             output_parser=YamlOutputParser(pydantic_object=Mindmap)
         )
         self.figures_chain = create_chain(
             self.config.chains.figures.engine_name if self.config.chains.figures.engine_name else self.config.engine_name,
-            self.config.chains.figures.template.replace("{lang}", self.config.lang),
+            self.config.chains.figures.template,
             output_parser=YamlOutputParser(pydantic_object=Figures)
         )
         self.insert_figures_chain = create_chain(
             self.config.chains.insert_figures.engine_name if self.config.chains.insert_figures.engine_name else self.config.engine_name,
-            self.config.chains.insert_figures.template.replace("{lang}", self.config.lang),
+            self.config.chains.insert_figures.template,
             output_parser=YamlOutputParser(pydantic_object=Summary)
         )
         # 初始化PDF解析器

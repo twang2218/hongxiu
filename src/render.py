@@ -172,7 +172,7 @@ def render_summary_to_latex(data: str|dict|Summary, output: Path, figures: List[
         elif isinstance(value, str):
             buf.write(value + "\n")
         else:
-            logger.warning(f"render_latex(): Unknown type {type(data.summary[title])} : {data['summary'][title]} in summary.")
+            logger.warning(f"render_latex(): Unknown type {type(data.summary[title])} : {data.summary[title]} in summary.")
         buf.write("}\n")
     latex = latex.replace("|content|", buf.getvalue())
 
