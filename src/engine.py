@@ -36,33 +36,43 @@ class Engine(BaseModel):
             self.config = config
         # 初始化链
         self.summary_chain = create_chain(
-            self.config.chains.summary.engine_name if self.config.chains.summary.engine_name else self.config.engine_name,
+            self.config.chains.summary.engine_name
+            if self.config.chains.summary.engine_name
+            else self.config.engine_name,
             self.config.chains.summary.template,
-            Summary
+            Summary,
         )
         self.mindmap_chain = create_chain(
-            self.config.chains.mindmap.engine_name if self.config.chains.mindmap.engine_name else self.config.engine_name,
+            self.config.chains.mindmap.engine_name
+            if self.config.chains.mindmap.engine_name
+            else self.config.engine_name,
             self.config.chains.mindmap.template,
-            Mindmap
+            Mindmap,
         )
         self.figures_chain = create_chain(
-            self.config.chains.figures.engine_name if self.config.chains.figures.engine_name else self.config.engine_name,
+            self.config.chains.figures.engine_name
+            if self.config.chains.figures.engine_name
+            else self.config.engine_name,
             self.config.chains.figures.template,
-            Figures
+            Figures,
         )
         self.insert_figures_chain = create_chain(
-            self.config.chains.insert_figures.engine_name if self.config.chains.insert_figures.engine_name else self.config.engine_name,
+            self.config.chains.insert_figures.engine_name
+            if self.config.chains.insert_figures.engine_name
+            else self.config.engine_name,
             self.config.chains.insert_figures.template,
-            Summary
+            Summary,
         )
         # 初始化PDF解析器
         self.pdf_parser = PdfParser.create(self.config.pdf_parser)
 
-    def summarize(self, content: str|Path, output: str, override: bool = False) -> Summary:
+    def summarize(
+        self, content: str | Path, output: str, override: bool = False
+    ) -> Summary:
         po = Path(output)
-        p_json = po.parent / (po.stem + '.json')
-        p_latex = po.parent / (po.stem + '.tex')
-        p_pdf = po.parent / (po.stem + '.pdf')
+        p_json = po.parent / (po.stem + ".json")
+        p_latex = po.parent / (po.stem + ".tex")
+        p_pdf = po.parent / (po.stem + ".pdf")
 
         # 如果content是Path对象，说明其内不是文本内容，因此需要读取PDF文件
         if isinstance(content, Path) and content.suffix == ".pdf":
@@ -71,23 +81,25 @@ class Engine(BaseModel):
         # 调用模型生成总结
         if p_json.exists() and not override:
             logger.debug(f"File {p_json} exists, return its content")
-            summary = Summary.model_validate_json(p_json.read_text(encoding='utf-8'))
+            summary = Summary.model_validate_json(p_json.read_text(encoding="utf-8"))
         else:
             logger.info(f"Generating Summary ({p_json})")
-            summary = self.summary_chain.invoke({'text': content})
+            summary = self.summary_chain.invoke({"text": content})
 
         # 如果pdf_parser是pix2text，则有机会抽取图片，此时我们调用 figures() 方法获取图片信息
         figures_path = []
         if self.pdf_parser.get_type() == PdfParserType.PIX2TEXT:
             # 从 Markdown 中提取重要图片
             logger.info("Extracting Figures..")
-            figures = self.figures_chain.invoke({'text': content})
+            figures = self.figures_chain.invoke({"text": content})
             # print(f"figures: ({type(figures)}) {figures}")
             # 修订图片路径，使其相对于 .tex 文件
             print(f"cwd: {Path.cwd()}, output: {output}")
             p_figures_dir = Path(output).parent / po.stem.rstrip(".summary")
             p_figures_dir = p_figures_dir.relative_to(p_latex.parent)
-            figures.figures = [figure for figure in figures.figures if figure.type == "FIGURE"]
+            figures.figures = [
+                figure for figure in figures.figures if figure.type == "FIGURE"
+            ]
             figures_existed = []
             for figure in figures.figures:
                 if not figure.link:
@@ -108,11 +120,13 @@ class Engine(BaseModel):
                 logger.info("Inserting Figures into Summary...")
                 # print(f"figures_json: \n{figures_json}")
                 # print(f"summary_json: \n{summary_json}")
-                summary = self.insert_figures_chain.invoke({'summary': summary_json, 'figures': figures_json})
+                summary = self.insert_figures_chain.invoke(
+                    {"summary": summary_json, "figures": figures_json}
+                )
                 summary_json = summary.model_dump_json(indent=2)
                 # print(f"new summary: \n{summary_json}")
                 p_summary_figures = p_json.parent / (p_json.stem + ".figures.json")
-                with open(p_summary_figures, 'w', encoding='utf-8') as f:
+                with open(p_summary_figures, "w", encoding="utf-8") as f:
                     f.write(summary_json)
 
         # 调用钩子函数
@@ -122,17 +136,21 @@ class Engine(BaseModel):
                     hook(summary)
 
         if not p_json.exists() or override:
-            p_json.write_text(summary.model_dump_json(indent=2), encoding='utf-8')
+            p_json.write_text(summary.model_dump_json(indent=2), encoding="utf-8")
 
-        render_summary_to_latex(summary, p_latex, figures=figures_path, override=override)
+        render_summary_to_latex(
+            summary, p_latex, figures=figures_path, override=override
+        )
         latex_to_pdf(p_latex, p_pdf, override)
         return summary
 
-    def figures(self, content: str|Path, output: str, override: bool = False) -> List[Figure]:
+    def figures(
+        self, content: str | Path, output: str, override: bool = False
+    ) -> List[Figure]:
         po = Path(output)
         # p_figures_dir = po / "figures"
         # p_json = po / "figures.json"
-        p_json = po.parent / (po.stem + '.figures.json')
+        p_json = po.parent / (po.stem + ".figures.json")
 
         # 如果content是Path对象，说明其内不是文本内容，因此需要读取PDF文件
         if isinstance(content, Path) and content.suffix == ".pdf":
@@ -151,14 +169,16 @@ class Engine(BaseModel):
             po.mkdir(parents=True)
 
         logger.info(f"Generating Figures ({p_json})")
-        figures = self.figures_chain.invoke({'text': content})
+        figures = self.figures_chain.invoke({"text": content})
 
         # p_json.write_text(figures.model_dump_json(indent=2), encoding='utf-8')
         return figures.figures
 
-    def mindmap(self, content: str|Path, output: str, override: bool = False) -> Mindmap:
+    def mindmap(
+        self, content: str | Path, output: str, override: bool = False
+    ) -> Mindmap:
         p_pdf = Path(output)
-        p_json = p_pdf.parent / (p_pdf.stem + '.json')
+        p_json = p_pdf.parent / (p_pdf.stem + ".json")
         # p_markdown = p_pdf.parent / (p_pdf.stem + '.md')
 
         # 如果content是Path对象，说明其内不是文本内容，因此需要读取PDF文件
@@ -168,21 +188,23 @@ class Engine(BaseModel):
         # 检查中间文件是否存在
         if p_json.exists():
             if not override:
-                logger.warning(f"{p_json} is exist, please use --override to override it.")
-                return Mindmap.model_validate_json(p_json.read_text(encoding='utf-8'))
+                logger.warning(
+                    f"{p_json} is exist, please use --override to override it."
+                )
+                return Mindmap.model_validate_json(p_json.read_text(encoding="utf-8"))
             else:
                 p_json.unlink()
-    
+
         # 检查PDF文件是否存在
         if p_pdf.exists() and not override:
-                logger.warning(f"{p_pdf} is exist, please use --override to override it.")
-                return None
+            logger.warning(f"{p_pdf} is exist, please use --override to override it.")
+            return None
 
         # 调用模型生成脑图
         logger.info(f"Generating Mindmap JSON ({p_json})")
-        mindmap = self.mindmap_chain.invoke({'text': content})
-        p_json.write_text(mindmap.model_dump_json(indent=2), encoding='utf-8')
-        
+        mindmap = self.mindmap_chain.invoke({"text": content})
+        p_json.write_text(mindmap.model_dump_json(indent=2), encoding="utf-8")
+
         if self.hooks["on_mindmap"]:
             for hook in self.hooks["on_mindmap"]:
                 if callable(hook):
@@ -190,10 +212,11 @@ class Engine(BaseModel):
 
         # 转换脑图 为 PDF
         render_mindmap_to_pdf(mindmap, p_pdf, override)
-    
+
         return mindmap
 
     def on_summary(self, hook: Callable):
         self.hooks["on_summary"].append(hook)
+
     def on_mindmap(self, hook: Callable):
         self.hooks["on_mindmap"].append(hook)
