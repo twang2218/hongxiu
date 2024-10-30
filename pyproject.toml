@@ -12,9 +12,21 @@ dependencies = [
     "langchain-core>=0.3.11",
     "langchain-openai>=0.2.2",
     "loguru>=0.7.2",
-    "pix2text>=1.1.1.2",
     "portkey-ai>=1.9.3",
     "pymupdf4llm>=0.0.17",
-    "pypdf2>=3.0.1",
     "setuptools>=75.2.0",
+]
+
+[project.optional-dependencies]
+pypdf = [
+    "pypdf2>=3.0.1",
+]
+pix2text = [
+    "pix2text>=1.1.1.2",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "ipykernel>=6.29.5",
+    "ruff>=0.7.1",
 ]
