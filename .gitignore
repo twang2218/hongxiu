@@ -197,3 +197,6 @@ Temporary Items
 
 # sample
 sample
+*.diff
+*.ipynb
+*.csv

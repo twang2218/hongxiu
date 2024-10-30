@@ -1,12 +1,10 @@
 import io
 from pathlib import Path
-import re
 from typing import List
 
 from graphviz import Digraph
 from loguru import logger
 from pydantic import BaseModel
-import yaml
 
 from .utils import color_gradient, color_luminance
 from .model import Mindmap, Summary
@@ -19,8 +17,7 @@ def render_summary_to_markdown(data: str|dict|Summary, output: Path, override: b
 
     # 所有 data 都转换为目标 Summary 对象
     if isinstance(data, str):
-        data = yaml.safe_load(data)
-        data = Summary(**data)
+        data = Summary.model_validate_json(data)
     elif isinstance(data, dict):
         data = Summary(**data)
 
@@ -130,8 +127,7 @@ def render_summary_to_latex(data: str|dict|Summary, output: Path, figures: List[
 
     # 所有 data 都转换为目标 Summary 对象
     if isinstance(data, str):
-        data = yaml.safe_load(data)
-        data = Summary(**data)
+        Summary.model_validate_json(data)
     elif isinstance(data, dict):
         data = Summary(**data)
 
@@ -224,8 +220,7 @@ def render_mindmap_to_dot(data: str|dict|Mindmap, output: Path, override: bool =
 
     # 所有 data 都转换为目标 Mindmap 对象
     if isinstance(data, str):
-        data = yaml.safe_load(data)
-        data = Mindmap(**data)
+        data = Mindmap.model_validate_json(data)
     elif isinstance(data, dict):
         data = Mindmap(**data)
 

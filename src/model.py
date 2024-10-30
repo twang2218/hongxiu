@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # 论文图片
 class Figure(BaseModel):
@@ -11,11 +11,11 @@ class Figures(BaseModel):
 
 
 class Metadata(BaseModel):
-    title: str
-    authors: str
-    institution: str
-    date: str
-    tldr: str
+    title: str = Field("", description="论文标题")
+    authors: str = Field("", description="作者")
+    institution: str = Field("", description="机构")
+    date: str = Field("", description="论文日期")
+    tldr: str = Field("", description="一句话摘要")
 
 
 # 论文总结

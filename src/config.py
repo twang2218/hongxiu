@@ -2,9 +2,8 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from .pdf_parser import PdfParserType
-from .utils import yaml_load
 
-DEFAULT_CONFIG_YAML = Path(__file__).parent.parent / "config" / "config.yaml"
+DEFAULT_CONFIG_JSON = Path(__file__).parent.parent / "config" / "config.json"
 
 class TemplateConfig(BaseModel):
     system: str = Field("", description="The system template")
@@ -30,5 +29,5 @@ class AppConfig(BaseModel):
     @classmethod
     def create(cls, filename: Path = None) -> "AppConfig":
         if filename is None:
-            filename = DEFAULT_CONFIG_YAML
-        return cls(**yaml_load(filename))
+            filename = DEFAULT_CONFIG_JSON
+        return AppConfig.model_validate_json(filename.read_text(encoding='utf-8'))

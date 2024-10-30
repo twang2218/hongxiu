@@ -5,8 +5,6 @@ import struct
 from typing import Tuple
 
 from loguru import logger
-from pydantic import BaseModel
-import yaml
 
 def download_paper(paper: str, output_dir: str) -> Path:
     import requests
@@ -40,14 +38,6 @@ def download_paper(paper: str, output_dir: str) -> Path:
     with open(paper_path, 'wb') as f:
         f.write(r.content)
     return paper_path
-
-def yaml_dump(obj: BaseModel) -> str:
-    return yaml.dump(obj.model_dump(), default_flow_style=False, allow_unicode=True, sort_keys=False)
-
-def yaml_load(yaml_file: str|Path) -> dict:
-    if isinstance(yaml_file, str):
-        yaml_file = Path(yaml_file)
-    return yaml.safe_load(yaml_file.read_text(encoding='utf-8'))
 
 def latex_to_pdf(latex_file: Path, output: Path, override: bool = False):
     if not override and output.exists():
