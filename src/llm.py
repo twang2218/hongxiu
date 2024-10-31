@@ -38,6 +38,8 @@ def create_model(provider: str, model_name: str) -> BaseChatModel:
             api_key=os.environ.get("MOONSHOT_API_KEY"),
             base_url="https://api.moonshot.cn/v1",
         )
+        # https://github.com/langchain-ai/langchain/issues/27058
+        # m = MoonshotChat(model=model_name)
     elif provider == "deepseek":
         m = ChatOpenAI(
             model=model_name,
