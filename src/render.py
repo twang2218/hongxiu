@@ -206,7 +206,10 @@ def render_summary_to_latex(
         elif isinstance(value, dict):
             render_summary_to_latex_dict(buf, value, 1)
         elif isinstance(value, str):
-            buf.write(value + "\n")
+            if title == "IMAGE":
+                buf.write(render_summary_to_latex_image(value) + "\n")
+            else:
+                buf.write(value + "\n")
         else:
             logger.warning(
                 f"render_latex(): Unknown type {type(data.summary[title])} : {data.summary[title]} in summary."

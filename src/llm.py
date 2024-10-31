@@ -1,5 +1,6 @@
 import os
 from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.runnables.base import RunnableSequence
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
@@ -53,7 +54,7 @@ def create_model(provider: str, model_name: str) -> BaseChatModel:
 
 def create_chain(
     model_name: str, template: TemplateConfig, cls: type
-) -> ChatPromptTemplate:
+) -> RunnableSequence:
     if ":" not in model_name:
         logger.warning(
             f"missing provider in model name: {model_name}, using 'openai' as default"

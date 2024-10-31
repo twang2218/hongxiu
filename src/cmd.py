@@ -70,7 +70,7 @@ def init_command(config, debug, pdf_parser, model, override):
     if pdf_parser:
         cfg.pdf_parser = PdfParserType.from_string(pdf_parser)
     if model:
-        cfg.engine_name = model
+        cfg.llm = model
     logger.debug(
         f"init_command(): config: {config}, debug: {debug}, pdf_parser: {pdf_parser}, override: {override}"
     )
