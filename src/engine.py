@@ -35,7 +35,7 @@ class Engine(BaseModel):
         else:
             self.config = config
         # 初始化链
-        logger.info(f"Engine: {self.config.engine_name}")
+        logger.info(f"Model: {self.config.engine_name}")
         self.summary_chain = create_chain(
             self.config.engine_name,
             self.config.chains.summary.template,

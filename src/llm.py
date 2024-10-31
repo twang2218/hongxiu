@@ -3,6 +3,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
 from langchain_community.chat_models import ChatTongyi, MoonshotChat
 from loguru import logger
 from portkey_ai import createHeaders, PORTKEY_GATEWAY_URL
@@ -43,6 +44,8 @@ def create_model(provider: str, model_name: str) -> BaseChatModel:
             api_key=os.environ.get("DEEPSEEK_API_KEY"),
             base_url="https://api.deepseek.com",
         )
+    elif provider == "anthropic":
+        m = ChatAnthropic(model=model_name)
     return m
 
 
