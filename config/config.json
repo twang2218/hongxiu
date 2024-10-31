@@ -1,5 +1,5 @@
 {
-  "model_name": "qwen-turbo",
+  "model_name": "openai:gpt-4o-mini",
   "lang": "中文",
   "pdf_parser": "pymupdf",
   "debug": false,

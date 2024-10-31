@@ -34,10 +34,19 @@ class BaseCommand(click.core.Command):
         self.params.insert(
             0,
             click.core.Option(
+                ("--model",),
+                type=click.STRING,
+                default=None,
+                help="大语言模型，格式为 provider:model_name，例如 openai:gpt-4o-mini",
+            ),
+        )
+        self.params.insert(
+            0,
+            click.core.Option(
                 ("--pdf-parser",),
                 type=click.Choice(["pymupdf", "pypdf2", "pix2text"]),
-                default="pymupdf",
-                help="PDF parser",
+                default=None,
+                help="PDF parser library, default is pymupdf",
             ),
         )
         self.params.insert(
@@ -54,11 +63,14 @@ class BaseCommand(click.core.Command):
         )
 
 
-def init_command(config, debug, pdf_parser, override):
+def init_command(config, debug, pdf_parser, model, override):
     init_logger(debug)
     load_dotenv()
     cfg = AppConfig.create(config)
-    cfg.pdf_parser = PdfParserType.from_string(pdf_parser)
+    if pdf_parser:
+        cfg.pdf_parser = PdfParserType.from_string(pdf_parser)
+    if model:
+        cfg.engine_name = model
     logger.debug(
         f"init_command(): config: {config}, debug: {debug}, pdf_parser: {pdf_parser}, override: {override}"
     )
@@ -74,19 +86,18 @@ def main():
 @main.command(cls=BaseCommand)
 @click.argument("input_path", type=str)
 @click.option("--output_dir", type=click.Path(), default=None, help="保存总结的目录")
-def summary(config, debug, pdf_parser, override, input_path, output_dir):
-    cfg = init_command(config, debug, pdf_parser, override)
+def summary(config, debug, pdf_parser, model, override, input_path, output_dir):
+    cfg = init_command(config, debug, pdf_parser, model, override)
     engine = Engine(cfg)
 
     pi = Path(input_path)
     if not pi.exists():
-        paper = download_paper(input_path, output_dir)
-        inputs = [paper]
+        pi = download_paper(input_path, output_dir)
+
+    if pi.is_dir():
+        inputs = [f for f in pi.iterdir() if f.suffix == ".pdf"]
     else:
-        if pi.is_dir():
-            inputs = [f for f in pi.iterdir() if f.suffix == ".pdf"]
-        else:
-            inputs = [pi]
+        inputs = [pi]
 
     po = Path(output_dir) if output_dir else pi.parent
     if not po.exists():
@@ -102,8 +113,8 @@ def summary(config, debug, pdf_parser, override, input_path, output_dir):
 @main.command(cls=BaseCommand)
 @click.argument("input_path", type=str)
 @click.option("--output_dir", type=click.Path(), default=None, help="保存脑图的目录")
-def mindmap(config, debug, pdf_parser, override, input_path, output_dir):
-    cfg = init_command(config, debug, pdf_parser, override)
+def mindmap(config, debug, pdf_parser, model, override, input_path, output_dir):
+    cfg = init_command(config, debug, pdf_parser, model, override)
     engine = Engine(cfg)
 
     pi = Path(input_path)
@@ -128,8 +139,8 @@ def mindmap(config, debug, pdf_parser, override, input_path, output_dir):
 
 @main.command(cls=BaseCommand)
 @click.argument("input_path", type=click.Path(exists=True))
-def dev(config, debug, pdf_parser, override, input_path):
-    cfg = init_command(config, debug, pdf_parser, override)
+def dev(config, debug, pdf_parser, model, override, input_path):
+    cfg = init_command(config, debug, pdf_parser, model, override)
     engine = Engine(cfg)
 
     pi = Path(input_path)

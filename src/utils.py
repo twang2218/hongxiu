@@ -24,7 +24,7 @@ def download_paper(paper: str, output_dir: str) -> Path:
         logger.error(f"Unknown paper location: {paper}")
 
     if output_dir is None:
-        output_dir = os.getcwd()
+        output_dir = Path.cwd() / "output"
     po = Path(output_dir)
     if not po.exists():
         po.mkdir(parents=True)

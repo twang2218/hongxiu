@@ -1,53 +1,147 @@
-# 论文阅读辅助工具
+<div align="center">
 
-## 1. 介绍
+# 红袖 (HongXiu)
 
-### 1.1. 背景
+[![Python 3.7+](https://img.shields.io/badge/Python-3.7+-blue.svg)](https://www.python.org/downloads/release/python-370/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-最近在使用腾讯元宝的时候，注意到其中一个新增的「深度阅读」的功能非常不错。它主要包括了以下几个功能：
+🎯 基于AI的学术论文阅读助手 | 让阅读文献更轻松
 
-- **总结**
-  - 总结部分包括了
-    - 研究背景
-      - 背景介绍
-      - 研究内容
-      - 文献综述
-    - 研究方法
-    - 实验设计
-      - 数据集
-      - 实验设置
-      - 评估指标
-    - 结果与分析
-      - 包含了具体的测试数据以及结果数据
-    - 总体结论
-      - 总结了论文的研究成果，以及意义。
-- **精读**
-  - 精读的内容包括了
-    - 🌟 核心速览
-      - 研究背景
-        - 研究问题
-        - 研究难点
-        - 相关工作
-      - 研究方法
-      - 实验设计
-        - 数据收集
-        - 实验设置
-      - 结果与分析
-      - 总体结论
-    - ✏️ 论文评价
-      - 优点与创新
-      - 不足与反思
-    - ✍️ 关键问题及回答
-      - 问题1
-      - 问题2
-      - ...
-  - 精读的「核心速览」内容，还用来生成「学术海报」，图文并茂，非常简洁明了。
-- **翻译**
-- **脑图**
-  - 自动生成一个脑图，包含了论文的章节要点，非常适合用来复习。
+</div>
 
-### 1.2. 本项目
+---
 
-我希望在这个项目中，实现一个类似的功能，用来辅助论文的阅读，最主要的可以帮忙生成类似于「精读」和「脑图」的功能。
+## 📖 简介
 
+红袖是一个强大的学术论文阅读辅助工具，它利用人工智能帮助研究人员和学生更好地理解学术论文，通过自动生成论文摘要和思维导图，让文献阅读变得更加高效。
 
+## ✨ 主要功能
+
+### 📝 论文摘要生成
+
+自动生成全面的论文摘要，包括：
+- 📌 研究背景和动机
+- 🔍 研究方法和技术
+- 🧪 实验设计（如果适用）
+- 📊 结果分析
+- 💡 结论和启示
+
+### 🗺️ 思维导图生成
+
+创建论文的可视化思维导图，帮助理解：
+- 📑 论文结构和流程
+- 🔗 关键概念和关系
+- ⭐ 主要发现和结论
+
+### 🛠️ 技术特点
+
+- **多种PDF解析器支持**
+  - ✅ PyMuPDF（默认）
+  - ✅ PyPDF2
+  - ✅ Pix2Text
+
+- **专业输出格式**
+  - 📄 PDF格式的论文摘要（使用LaTeX排版）
+  - 🎨 PDF格式的思维导图
+
+## 🚀 快速开始
+
+### 📦 安装
+
+```bash
+pip install hongxiu
+```
+
+### 💻 使用方法
+
+#### 生成论文摘要
+
+```bash
+hongxiu summary paper.pdf --output_dir ./output
+```
+
+📋 输出文件：
+- `paper.summary.pdf`：格式化的摘要
+- `paper.summary.json`：结构化的摘要数据
+- `paper.summary.tex`：LaTeX源文件
+
+#### 创建思维导图
+
+```bash
+hongxiu mindmap paper.pdf --output_dir ./output
+```
+
+🎯 输出文件：
+- `paper.mindmap.pdf`：可视化思维导图
+- `paper.mindmap.json`：结构化思维导图数据
+
+### ⚙️ 命令选项
+
+所有命令的通用选项：
+- `--config`：自定义配置文件路径
+- `--pdf-parser`：选择PDF解析器（pymupdf/pypdf2/pix2text）
+- `--debug`：启用调试模式
+- `--override`：覆盖现有文件
+
+## 🔧 配置
+
+通过JSON文件提供配置：
+
+```json
+{
+  "model_name": "qwen-turbo",
+  "lang": "中文",
+  "pdf_parser": "pymupdf",
+  "debug": false,
+  "chains": {
+    "summary": {
+      "template": {
+        "system": "...",
+        "user": "..."
+      }
+    },
+    "mindmap": {
+      "template": {
+        "system": "...",
+        "user": "..."
+      }
+    },
+    "figures": {
+      "template": {
+        "system": "...",
+        "user": "..."
+      }
+    }
+  }
+}
+```
+
+## 📚 依赖项
+
+| 依赖包 | 用途 |
+|--------|------|
+| click | 命令行界面 |
+| graphviz | 思维导图可视化 |
+| loguru | 日志记录 |
+| pydantic | 数据验证 |
+| python-dotenv | 环境管理 |
+| langchain-core | LLM集成 |
+| langchain-openai | OpenAI集成 |
+| langchain-community | 社区模型支持 |
+
+## 📄 开源协议
+
+[MIT License](https://opensource.org/licenses/MIT)
+
+## 👨‍💻 作者
+
+王涛 (twang2218@gmail.com)
+
+---
+
+<div align="center">
+
+**红袖** ❤️ 让研究更轻松
+
+</div>

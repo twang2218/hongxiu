@@ -200,3 +200,4 @@ sample
 *.diff
 *.ipynb
 *.csv
+output

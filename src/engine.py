@@ -35,31 +35,24 @@ class Engine(BaseModel):
         else:
             self.config = config
         # 初始化链
+        logger.info(f"Engine: {self.config.engine_name}")
         self.summary_chain = create_chain(
-            self.config.chains.summary.engine_name
-            if self.config.chains.summary.engine_name
-            else self.config.engine_name,
+            self.config.engine_name,
             self.config.chains.summary.template,
             Summary,
         )
         self.mindmap_chain = create_chain(
-            self.config.chains.mindmap.engine_name
-            if self.config.chains.mindmap.engine_name
-            else self.config.engine_name,
+            self.config.engine_name,
             self.config.chains.mindmap.template,
             Mindmap,
         )
         self.figures_chain = create_chain(
-            self.config.chains.figures.engine_name
-            if self.config.chains.figures.engine_name
-            else self.config.engine_name,
+            self.config.engine_name,
             self.config.chains.figures.template,
             Figures,
         )
         self.insert_figures_chain = create_chain(
-            self.config.chains.insert_figures.engine_name
-            if self.config.chains.insert_figures.engine_name
-            else self.config.engine_name,
+            self.config.engine_name,
             self.config.chains.insert_figures.template,
             Summary,
         )
@@ -92,42 +85,51 @@ class Engine(BaseModel):
             # 从 Markdown 中提取重要图片
             logger.info("Extracting Figures..")
             figures = self.figures_chain.invoke({"text": content})
-            # print(f"figures: ({type(figures)}) {figures}")
-            # 修订图片路径，使其相对于 .tex 文件
-            print(f"cwd: {Path.cwd()}, output: {output}")
-            p_figures_dir = Path(output).parent / po.stem.rstrip(".summary")
-            p_figures_dir = p_figures_dir.relative_to(p_latex.parent)
-            figures.figures = [
-                figure for figure in figures.figures if figure.type == "FIGURE"
-            ]
-            figures_existed = []
-            for figure in figures.figures:
-                if not figure.link:
-                    continue
-                p_figure = p_figures_dir / figure.link
-                p_figure_abs = p_latex.parent / p_figure
-                if p_figure_abs.exists():
-                    figure.link = str(p_figure)
-                    figures_existed.append(figure)
-                    print(f"figure.link: {figure.link}")
-            figures.figures = figures_existed
+            if figures is None:
+                logger.warning("Failed to extract figures. None returned.")
+            else:
+                # print(f"figures: ({type(figures)}) {figures}")
+                # 修订图片路径，使其相对于 .tex 文件
+                print(f"cwd: {Path.cwd()}, output: {output}")
+                p_figures_dir = Path(output).parent / po.stem.rstrip(".summary")
+                p_figures_dir = p_figures_dir.relative_to(p_latex.parent)
+                figures.figures = [
+                    figure for figure in figures.figures if figure.type == "FIGURE"
+                ]
+                figures_existed = []
+                for figure in figures.figures:
+                    if not figure.link:
+                        continue
+                    p_figure = p_figures_dir / figure.link
+                    p_figure_abs = p_latex.parent / p_figure
+                    if p_figure_abs.exists():
+                        figure.link = str(p_figure)
+                        figures_existed.append(figure)
+                        print(f"figure.link: {figure.link}")
+                figures.figures = figures_existed
 
-            if len(figures.figures) > 0:
-                # 重新生成 JSON 内容
-                figures_json = figures.model_dump_json(indent=2)
-                summary_json = summary.model_dump_json(indent=2)
-                # 结合 summary 和 figures 生成新的 summary
-                logger.info("Inserting Figures into Summary...")
-                # print(f"figures_json: \n{figures_json}")
-                # print(f"summary_json: \n{summary_json}")
-                summary = self.insert_figures_chain.invoke(
-                    {"summary": summary_json, "figures": figures_json}
-                )
-                summary_json = summary.model_dump_json(indent=2)
-                # print(f"new summary: \n{summary_json}")
-                p_summary_figures = p_json.parent / (p_json.stem + ".figures.json")
-                with open(p_summary_figures, "w", encoding="utf-8") as f:
-                    f.write(summary_json)
+                if len(figures.figures) > 0:
+                    # 重新生成 JSON 内容
+                    figures_json = figures.model_dump_json(indent=2)
+                    summary_json = summary.model_dump_json(indent=2)
+                    # 结合 summary 和 figures 生成新的 summary
+                    logger.info("Inserting Figures into Summary...")
+                    # print(f"figures_json: \n{figures_json}")
+                    # print(f"summary_json: \n{summary_json}")
+                    summary_new = self.insert_figures_chain.invoke(
+                        {"summary": summary_json, "figures": figures_json}
+                    )
+                    if summary is None:
+                        logger.warning("Failed to insert figures into summary.")
+                    else:
+                        summary = summary_new
+                        summary_json = summary.model_dump_json(indent=2)
+                        # print(f"new summary: \n{summary_json}")
+                        p_summary_figures = p_json.parent / (
+                            p_json.stem + ".figures.json"
+                        )
+                        with open(p_summary_figures, "w", encoding="utf-8") as f:
+                            f.write(summary_json)
 
         # 调用钩子函数
         if self.hooks["on_summary"]:

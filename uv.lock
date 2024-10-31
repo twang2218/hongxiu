@@ -841,7 +841,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "ipykernel", specifier = ">=6.29.5" },
-    { name = "ruff" },
+    { name = "ruff", specifier = ">=0.7.1" },
 ]
 
 [[package]]
