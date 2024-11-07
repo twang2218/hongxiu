@@ -107,3 +107,22 @@ def check_set_gpu(override=None):
     except ImportError as e:
         logger.error("Please install pytorch, e.g., pip install torch")
         raise e
+
+
+def ensure_list(value, cls: type = None) -> list:
+    if isinstance(value, str):
+        value = [value]
+    elif isinstance(value, list):
+        value = value
+    elif isinstance(value, tuple):
+        value = list(value)
+    elif isinstance(value, set):
+        value = list(value)
+    elif isinstance(value, dict):
+        value = list(value.values())
+    else:
+        logger.warning(f"Unknown type: {type(value)}")
+        value = [value]
+    if cls:
+        value = [cls(i) for i in value]
+    return value

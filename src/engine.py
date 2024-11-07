@@ -14,7 +14,7 @@ from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain_community.chat_models import ChatTongyi, MoonshotChat
 
-from .config import AppConfig, TemplateConfig
+from .config import Config
 from .model import Figure, Figures, Summary, Mindmap
 from .pdf_parser import PdfParser, PdfParserType
 from .render import render_mindmap_to_pdf, render_summary_to_latex
@@ -26,7 +26,7 @@ class Engine(BaseModel):
         "on_summary": [],
         "on_mindmap": [],
     }
-    config: AppConfig = AppConfig()
+    config: Optional[Config] = None
     __llm: Optional[BaseChatModel] = None
     __llm_provider: Optional[str] = None
     __llm_name: Optional[str] = None
@@ -39,11 +39,11 @@ class Engine(BaseModel):
     __pdf_parser: Optional[PdfParser] = None
 
     # pylint: disable=no-member
-    def __init__(self, config: dict | AppConfig, **kwargs):
+    def __init__(self, config: dict | Config, **kwargs):
         super().__init__(**kwargs)
         # 整理配置
         if isinstance(config, dict):
-            self.config = AppConfig(**config)
+            self.config = Config(**config)
         else:
             self.config = config
         # 初始化链
@@ -52,14 +52,15 @@ class Engine(BaseModel):
         self.__chains["summary"] = self.__create_chain(
             self.__create_prompt(self.config.chains.summary.template), Summary
         )
+        self.__chains["summary_figures"] = self.__create_chain(
+            self.__create_prompt(self.config.chains.summary_figures.template), Figures
+        )
+        self.__chains["summary_merge_figures"] = self.__create_chain(
+            self.__create_prompt(self.config.chains.summary_merge_figures.template),
+            Summary,
+        )
         self.__chains["mindmap"] = self.__create_chain(
             self.__create_prompt(self.config.chains.mindmap.template), Mindmap
-        )
-        self.__chains["figures"] = self.__create_chain(
-            self.__create_prompt(self.config.chains.figures.template), Figures
-        )
-        self.__chains["insert_figures"] = self.__create_chain(
-            self.__create_prompt(self.config.chains.insert_figures.template), Summary
         )
         # 初始化PDF解析器
         self.__pdf_parser = PdfParser.create(self.config.pdf_parser)
@@ -103,10 +104,8 @@ class Engine(BaseModel):
             m = ChatAnthropic(model=self.__llm_name)
         return m
 
-    def __create_prompt(
-        self, messages: Union[List[Tuple[str, str]], TemplateConfig]
-    ) -> ChatPromptTemplate:
-        if isinstance(messages, TemplateConfig):
+    def __create_prompt(self, messages: List[Tuple[str, str]]) -> ChatPromptTemplate:
+        if not isinstance(messages, List):
             messages = [
                 ("system", messages.system),
                 ("user", messages.user),

@@ -1,19 +1,16 @@
+import importlib
+import os
 from pathlib import Path
 import sys
+
 import click
 from dotenv import load_dotenv
 from loguru import logger
-from pydantic import BaseModel
 
 from .utils import download_paper
 from .pdf_parser import PdfParserType
 from .engine import Engine
-from .config import AppConfig
-
-
-class Context(BaseModel):
-    config: AppConfig
-    engine: Engine
+from .config import Config
 
 
 def init_logger(debug: bool):
@@ -63,10 +60,44 @@ class BaseCommand(click.core.Command):
         )
 
 
+def find_path(path: str) -> str:
+    if Path.cwd().joinpath(path).exists():
+        # 先寻找用户当前目录为基础的目录是否存在该文件
+        return str(Path.cwd().joinpath(path))
+    else:
+        # 如果不存在，则寻找包内位置
+        return str(importlib.resources.files("src").joinpath(path))
+
+
+def set_env_var_if_empty(key: str, value: str):
+    if not os.environ.get(key):
+        os.environ[key] = value
+
+
+def set_env_var_init():
+    set_env_var_if_empty(
+        "HONGXIU_TEMPLATE_SUMMARY_PATH", find_path("config/summary.tmpl")
+    )
+    set_env_var_if_empty(
+        "HONGXIU_TEMPLATE_SUMMARY_FIGURES_PATH",
+        find_path("config/summary_figures.tmpl"),
+    )
+    set_env_var_if_empty(
+        "HONGXIU_TEMPLATE_SUMMARY_MERGE_FIGURES_PATH",
+        find_path("config/summary_merge_figures.tmpl"),
+    )
+    set_env_var_if_empty(
+        "HONGXIU_TEMPLATE_MINDMAP_PATH", find_path("config/mindmap.tmpl")
+    )
+
+
 def init_command(config, debug, pdf_parser, model, override):
     init_logger(debug)
     load_dotenv()
-    cfg = AppConfig.create(config)
+    set_env_var_init()
+    if not config:
+        config = ["hongxiu.yaml"]
+    cfg = Config(config_files=config, env_prefix="HONGXIU")
     if pdf_parser:
         cfg.pdf_parser = PdfParserType.from_string(pdf_parser)
     if model:

@@ -16,6 +16,7 @@ dependencies = [
     "portkey-ai>=1.9.3",
     "pymupdf4llm>=0.0.17",
     "setuptools>=75.2.0",
+    "toml>=0.10.2",
 ]
 
 [project.optional-dependencies]
@@ -29,5 +30,6 @@ pix2text = [
 [tool.uv]
 dev-dependencies = [
     "ipykernel>=6.29.5",
+    "pytest>=8.3.3",
     "ruff>=0.7.1",
 ]
