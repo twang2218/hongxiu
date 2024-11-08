@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List
 
+from dotenv import load_dotenv
 from loguru import logger
 from pydantic import BaseModel
 import yaml
@@ -30,8 +31,10 @@ class ConfigItem:
         >>> cfg.db.user = "admin"  # 动态添加配置项
     """
 
-    def __init__(self, value: dict):
+    def __init__(self, value: dict, preload: bool = False, prefix: str = ""):
         super().__setattr__("value", value)
+        super().__setattr__("preload", preload)
+        super().__setattr__("prefix", prefix)
 
     def __getattr__(self, name: str):
         """通过属性方式访问配置项
@@ -46,9 +49,12 @@ class ConfigItem:
         if name in self.value:
             item = self.value[name]
             if isinstance(item, dict):
-                return ConfigItem(item)
+                return ConfigItem(item, preload=self.preload, prefix=self.prefix)
             else:
-                return item
+                if not self.preload:
+                    return process_value(item, self.prefix)
+                else:
+                    return item
         else:
             return None
 
@@ -75,14 +81,14 @@ class Config(BaseModel):
     Args:
         config_files (List[str]): 配置文件名列表,默认为["config.yaml"]
         config_dir (List[str]): 配置文件目录列表,默认为["config"]
-        env_prefix (str): 环境变量前缀,默认为"APP"
+        prefix (str): 环境变量前缀,默认为"APP"
         config (Dict): 配置数据字典
 
     Examples:
         >>> cfg = Config(
         ...     config_files=["config.yaml", "local.yaml"],
         ...     config_dir=["config", "conf"],
-        ...     env_prefix="MYAPP"
+        ...     prefix="MYAPP"
         ... )
         >>> print(cfg.database.host)
         localhost
@@ -92,8 +98,10 @@ class Config(BaseModel):
 
     config_files: List[str] = ["config.yaml"]
     config_dir: List[str] = ["config"]
-    env_prefix: str = "APP"
+    prefix: str = "APP"
     config: Dict = {}
+    preload: bool = False
+    dotenv: bool = False
 
     def __init__(self, **data: Any):
         super().__init__(**data)
@@ -111,8 +119,10 @@ class Config(BaseModel):
             dict: 合并后的配置字典
         """
         logger.debug(
-            f"Config(): files: {self.config_files}, dir: {self.config_dir}, prefix: {self.env_prefix}"
+            f"Config(): files: {self.config_files}, dir: {self.config_dir}, prefix: {self.prefix}, dotenv: {self.dotenv}"
         )
+        if self.dotenv:
+            load_dotenv()
         cfg_env = self.load_env()
         cfg_files = self.load_files()
         cfg = deep_update(cfg_files, cfg_env)
@@ -123,7 +133,7 @@ class Config(BaseModel):
     def load_env(self) -> dict:
         """从环境变量加载配置
 
-        加载以env_prefix为前缀的环境变量作为配置项。
+        加载以prefix为前缀的环境变量作为配置项。
         环境变量名会被转换为小写作为配置项名。
 
         Returns:
@@ -131,7 +141,7 @@ class Config(BaseModel):
         """
         cfg = {}
         for key, value in os.environ.items():
-            if key.startswith(self.env_prefix):
+            if key.startswith(self.prefix):
                 key = self.__get_env_key_name(key)
                 cfg[key] = value
                 logger.debug(f"load_env(): {key}: {value}")
@@ -181,14 +191,7 @@ class Config(BaseModel):
             Any: 如果配置项是字典则返回ConfigItem对象,否则返回原始值。
             如果配置项不存在返回None。
         """
-        if name in self.config:
-            item = self.config[name]
-            if isinstance(item, dict):
-                return ConfigItem(item)
-            else:
-                return item
-        else:
-            return None
+        return ConfigItem(self.config, preload=self.preload, prefix=self.prefix).__getattr__(name)
 
     def __setattr__(self, name: str, value):
         """通过属性方式设置配置项
@@ -197,12 +200,7 @@ class Config(BaseModel):
             name (str): 配置项名称
             value: 配置项的值
         """
-        print(f"Config.__setattr__(): {name}: {value}")
-        if name == "config":
-            super().__setattr__(name, value)
-        else:
-            print(f"Config.__setattr__(): {name}: {value}")
-            self.config[name] = value
+        ConfigItem(self.config, preload=self.preload, prefix=self.prefix).__setattr__(name, value)
 
     # private
     def __get_env_key_name(self, key: str) -> str:
@@ -218,7 +216,7 @@ class Config(BaseModel):
         """
         # remove prefix
         key = str(key)
-        key = key[len(self.env_prefix) + 1 :]
+        key = key[len(self.prefix) + 1 :]
         # to lower case
         return key.lower()
 
@@ -287,7 +285,8 @@ class Config(BaseModel):
         else:
             logger.warning(f"Unknown file type: {path.suffix}")
         # process config
-        cfg = process_config(cfg)
+        if self.preload:
+            cfg = process_config(cfg)
         return cfg
 
     def __load_config_file_yaml(self, path: Path) -> dict:
@@ -369,15 +368,15 @@ def deep_update(old: dict, newer: dict) -> dict:
     return c
 
 
-def get_env_var(key: str, env_prefix: str = "") -> str:
+def get_env_var(key: str, prefix: str = "") -> str:
     """获取环境变量值
 
-    如果提供了env_prefix,会先尝试获取带前缀的环境变量,
+    如果提供了prefix,会先尝试获取带前缀的环境变量,
     如果不存在再获取原始名称的环境变量。
 
     Args:
         key (str): 环境变量名
-        env_prefix (str, optional): 环境变量前缀
+        prefix (str, optional): 环境变量前缀
 
     Returns:
         str: 环境变量值,不存在则返回None
@@ -389,14 +388,14 @@ def get_env_var(key: str, env_prefix: str = "") -> str:
         >>> print(get_env_var("DB_HOST"))
         None
     """
-    if env_prefix and not key.startswith(env_prefix):
-        prefixed_key = f"{env_prefix}_{key}"
+    if prefix and not key.startswith(prefix):
+        prefixed_key = f"{prefix}_{key}"
         if prefixed_key in os.environ:
             return os.getenv(prefixed_key)
     return os.getenv(key)
 
 
-def process_value(value: Any, env_prefix: str = "") -> str:
+def process_value(value: Any, prefix: str = "") -> str:
     """处理配置值
 
     对配置值进行特殊处理:
@@ -406,7 +405,7 @@ def process_value(value: Any, env_prefix: str = "") -> str:
 
     Args:
         value (Any): 待处理的配置值
-        env_prefix (str, optional): 环境变量前缀
+        prefix (str, optional): 环境变量前缀
 
     Returns:
         str: 处理后的配置值
@@ -424,11 +423,11 @@ def process_value(value: Any, env_prefix: str = "") -> str:
             # @file path
             file = value[6:]
             if file.startswith("$"):
-                file = get_env_var(file[1:], env_prefix)
+                file = get_env_var(file[1:], prefix)
             return Path(file).read_text(encoding="utf-8")
         elif value.startswith("$"):
             # environment variable
-            return get_env_var(value[1:], env_prefix)
+            return get_env_var(value[1:], prefix)
         elif value.lower() in ["true", "false"]:
             # boolean
             return value.lower() == "true"
@@ -436,14 +435,14 @@ def process_value(value: Any, env_prefix: str = "") -> str:
     return value
 
 
-def process_config(cfg: dict, env_prefix: str = "") -> dict:
+def process_config(cfg: dict, prefix: str = "") -> dict:
     """递归处理配置字典中的值
 
     对配置字典中的每个值调用process_value进行处理。
 
     Args:
         cfg (dict): 配置字典
-        env_prefix (str, optional): 环境变量前缀
+        prefix (str, optional): 环境变量前缀
 
     Returns:
         dict: 处理后的配置字典
@@ -461,7 +460,7 @@ def process_config(cfg: dict, env_prefix: str = "") -> dict:
     c = {}
     for k, v in cfg.items():
         if isinstance(v, dict):
-            c[k] = process_config(v, env_prefix)
+            c[k] = process_config(v, prefix)
         else:
-            c[k] = process_value(v, env_prefix)
+            c[k] = process_value(v, prefix)
     return c

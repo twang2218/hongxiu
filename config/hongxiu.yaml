@@ -5,17 +5,17 @@ debug: false
 chains:
   summary:
     template:
-      system: "@file $HONGXIU_TEMPLATE_SUMMARY_PATH"
+      system: "@file $TEMPLATE_SUMMARY_PATH"
       user: "以下是论文的详细信息：\n\n{text}\n"
   summary_figures:
     template:
-      system: "@file $HONGXIU_TEMPLATE_SUMMARY_FIGURES_PATH"
+      system: "@file $TEMPLATE_SUMMARY_FIGURES_PATH"
       user: "以下是论文详细信息：\n\n{text}\n"
   summary_merge_figures:
     template:
-      system: "@file $HONGXIU_TEMPLATE_SUMMARY_MERGE_FIGURES_PATH"
+      system: "@file $TEMPLATE_SUMMARY_MERGE_FIGURES_PATH"
       user: "下面是图表信息：\n\n{figures}\n\n以下是论文总结的 JSON 格式内容：\n\n{summary}\n"
   mindmap:
     template:
-      system: "@file $HONGXIU_TEMPLATE_MINDMAP_PATH"
+      system: "@file $TEMPLATE_MINDMAP_PATH"
       user: "以下是论文的详细信息：\n\n{text}\n"
