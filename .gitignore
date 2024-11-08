@@ -201,3 +201,4 @@ sample
 *.ipynb
 *.csv
 output
+_version.py

@@ -158,6 +158,10 @@ def dev(config, debug, pdf_parser, model, override, input_path):
     for f in figures:
         print(f"Figure:  [{f.type}]\t{f.link}\t{f.desc}")
 
+@main.command()
+def version():
+    from . import __version__
+    print(f"hongxiu version: {__version__}")
 
 if __name__ == "__main__":
     main()
