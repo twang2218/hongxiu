@@ -1,7 +1,7 @@
 # Variables
 
 # Directories
-SRC_DIR=hongxiu
+SRC_DIR=src/hongxiu
 
 # Targets
 .PHONY: all install test check clean
@@ -39,3 +39,18 @@ publish: ## Publish the package to PyPI
 clean:
 	find . -type f -name '*.pyc' -delete
 	find . -type d -name '__pycache__' -exec rm -r {} +
+	rm -rf build/
+	rm -rf dist/
+	rm -rf *.egg-info
+	rm -rf .mypy_cache/
+	rm -rf .pytest_cache/
+	rm -rf .ruff_cache/
+	rm -rf .coverage
+	rm -rf coverage.xml
+	rm -rf htmlcov/
+	rm -rf .uv/
+	rm -rf .tox/
+	rm -rf .ipynb_checkpoints/
+	rm -rf .vscode/
+	rm -rf .idea/
+	rm -rf .DS_Store

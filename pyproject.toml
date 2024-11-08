@@ -63,8 +63,5 @@ dev-dependencies = [
     "types-toml>=0.10.8.20240310",
 ]
 
-[tool.setuptools.packages.find]
-where = ["."]
-
 [tool.setuptools.package-data]
-"hongxiu.config" = ["config/*.yaml", "config/*.yml", "config/*.tmpl"]
+"hongxiu" = ["config/*.yaml", "config/*.yml", "config/*.tmpl"]
