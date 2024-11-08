@@ -24,7 +24,7 @@ class PdfParser(BaseModel):
     type: PdfParserType
 
     def read_pdf(self, filename: str, override: bool = True) -> str:
-        pass
+        raise NotImplementedError
 
     def get_type(self) -> PdfParserType:
         return self.type
@@ -64,7 +64,8 @@ class PdfParserPix2Text(PdfParser):
 
 def read_pdf_pymupdf(filename: str, override: bool = True) -> str:
     try:
-        from pymupdf4llm import to_markdown  # 将PDF转换为Markdown
+        # 将PDF转换为Markdown
+        from pymupdf4llm import to_markdown  # type: ignore
 
         po = Path(filename)
         p_md = po.parent / (po.stem + ".md")
@@ -75,13 +76,14 @@ def read_pdf_pymupdf(filename: str, override: bool = True) -> str:
         text = to_markdown(filename)
         p_md.write_text(text)
         return text
-    except ImportError:
+    except ImportError as e:
         logger.error("Please install pymupdf4llm, e.g., pip install pymupdf4llm")
+        raise e
 
 
 def read_pdf_pypdf2(filename: str, override: bool = True) -> str:
     try:
-        from PyPDF2 import PdfFileReader
+        from PyPDF2 import PdfFileReader  # type: ignore
 
         po = Path(filename)
         p_md = po.parent / (po.stem + ".md")
@@ -102,7 +104,7 @@ def read_pdf_pypdf2(filename: str, override: bool = True) -> str:
 
 def read_pdf_pix2text(filename: str, override: bool = True) -> str:
     try:
-        from pix2text import Pix2Text
+        from pix2text import Pix2Text  # type: ignore
 
         # 整理文件路径
         po = Path(filename)

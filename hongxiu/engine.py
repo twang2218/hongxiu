@@ -1,18 +1,18 @@
 import os
 from pathlib import Path
-from typing import Optional, Dict, List, Callable, Tuple, Union, overload
+from typing import Optional, Dict, List, Callable, Tuple
 from loguru import logger
 from portkey_ai import PORTKEY_GATEWAY_URL, createHeaders
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
 
 # 导入langchain_core中的相关模块
-from langchain_core.runnables.base import RunnableSequence
+from langchain_core.runnables.base import Runnable
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
-from langchain_community.chat_models import ChatTongyi, MoonshotChat
+from langchain_community.chat_models import ChatTongyi
 
 from .config import Config
 from .model import Figure, Figures, Summary, Mindmap
@@ -28,15 +28,15 @@ class Engine(BaseModel):
     }
     config: Optional[Config] = None
     __llm: Optional[BaseChatModel] = None
-    __llm_provider: Optional[str] = None
-    __llm_name: Optional[str] = None
-    __chains: Dict[str, RunnableSequence] = {
+    __llm_provider: str = ""
+    __llm_name: str = ""
+    __chains: Dict[str, Optional[Runnable]] = {
         "mindmap": None,
         "summary": None,
         "summary_figures": None,
         "summary_merge_figures": None,
     }
-    __pdf_parser: Optional[PdfParser] = None
+    __pdf_parser: PdfParser = PdfParser(type=PdfParserType.PYMUPDF)
 
     # pylint: disable=no-member
     def __init__(self, config: dict | Config, **kwargs):
@@ -48,6 +48,8 @@ class Engine(BaseModel):
             self.config = config
         # 初始化链
         self.__llm_provider, self.__llm_name = self.config.llm.split(":")
+        if not self.__llm_provider or not self.__llm_name:
+            raise ValueError("Invalid LLM configuration.")
         self.__llm = self.__create_model()
         self.__chains["summary"] = self.__create_chain(
             self.__create_prompt(self.config.chains.summary.template), Summary
@@ -80,16 +82,19 @@ class Engine(BaseModel):
             return dict()
 
     def __create_model(self) -> BaseChatModel:
-        logger.info(f"model: {self.config.llm}")
+        logger.info(f"model: {self.__llm_provider} : {self.__llm_name}")
+        m: BaseChatModel
         if self.__llm_provider == "openai":
             extra_kwargs = self.__get_extra_kwargs()
             m = ChatOpenAI(model=self.__llm_name, **extra_kwargs)
         elif self.__llm_provider == "tongyi":
-            m = ChatTongyi(model=self.__llm_name)
+            import dashscope  # type: ignore # noqa: F401
+
+            m = ChatTongyi(model=self.__llm_name, api_key=None)
         elif self.__llm_provider == "moonshot":
             m = ChatOpenAI(
                 model=self.__llm_name,
-                api_key=os.environ.get("MOONSHOT_API_KEY"),
+                api_key=SecretStr(os.environ.get("MOONSHOT_API_KEY") or ""),
                 base_url="https://api.moonshot.cn/v1",
             )
             # https://github.com/langchain-ai/langchain/issues/27058
@@ -97,11 +102,11 @@ class Engine(BaseModel):
         elif self.__llm_provider == "deepseek":
             m = ChatOpenAI(
                 model=self.__llm_name,
-                api_key=os.environ.get("DEEPSEEK_API_KEY"),
+                api_key=SecretStr(os.environ.get("DEEPSEEK_API_KEY") or ""),
                 base_url="https://api.deepseek.com",
             )
         elif self.__llm_provider == "anthropic":
-            m = ChatAnthropic(model=self.__llm_name)
+            m = ChatAnthropic(model_name=self.__llm_name, timeout=60, stop=None)
         return m
 
     def __create_prompt(self, messages: List[Tuple[str, str]]) -> ChatPromptTemplate:
@@ -121,11 +126,13 @@ class Engine(BaseModel):
             new_messages.append((role, message))
         return ChatPromptTemplate.from_messages(new_messages)
 
-    def __create_chain(self, prompt: ChatPromptTemplate, cls: type) -> RunnableSequence:
+    def __create_chain(self, prompt: ChatPromptTemplate, cls: type) -> Runnable:
+        if self.__llm is None:
+            raise ValueError("LLM model is not initialized.")
         if self.__llm_provider in ["openai"]:
             return prompt | self.__llm.with_structured_output(cls)
         else:
-            parser = PydanticOutputParser(pydantic_object=cls)
+            parser: PydanticOutputParser = PydanticOutputParser(pydantic_object=cls)
             return (
                 prompt.partial(format_instructions=parser.get_format_instructions())
                 | self.__llm
@@ -142,7 +149,7 @@ class Engine(BaseModel):
 
         # 如果content是Path对象，说明其内不是文本内容，因此需要读取PDF文件
         if isinstance(content, Path) and content.suffix == ".pdf":
-            content = self.__pdf_parser.read_pdf(content, override=override)
+            content = self.__pdf_parser.read_pdf(str(content), override=override)
 
         # 调用模型生成总结
         if p_json.exists() and not override:
@@ -150,13 +157,17 @@ class Engine(BaseModel):
             summary = Summary.model_validate_json(p_json.read_text(encoding="utf-8"))
         else:
             logger.info(f"Generating Summary ({p_json})")
+            if self.__chains["summary"] is None:
+                raise ValueError("Summary chain is not initialized.")
             summary = self.__chains["summary"].invoke({"text": content})
 
         # 如果pdf_parser是pix2text，则有机会抽取图片，此时我们调用 figures() 方法获取图片信息
-        figures_path = []
+        figures_path: List[str] = []
         if self.__pdf_parser.get_type() == PdfParserType.PIX2TEXT:
             # 从 Markdown 中提取重要图片
             logger.info("Extracting Figures..")
+            if self.__chains["summary_figures"] is None:
+                raise ValueError("Summary_figures chain is not initialized.")
             figures = self.__chains["summary_figures"].invoke({"text": content})
             if figures is None:
                 logger.warning("Failed to extract summary_figures. None returned.")
@@ -189,6 +200,10 @@ class Engine(BaseModel):
                     logger.info("Inserting Figures into Summary...")
                     # print(f"figures_json: \n{figures_json}")
                     # print(f"summary_json: \n{summary_json}")
+                    if self.__chains["summary_merge_figures"] is None:
+                        raise ValueError(
+                            "Summary_merge_figures chain is not initialized."
+                        )
                     summary_new = self.__chains["summary_merge_figures"].invoke(
                         {"summary": summary_json, "figures": figures_json}
                     )
@@ -229,7 +244,7 @@ class Engine(BaseModel):
 
         # 如果content是Path对象，说明其内不是文本内容，因此需要读取PDF文件
         if isinstance(content, Path) and content.suffix == ".pdf":
-            content = self.__pdf_parser.read_pdf(content, override=override)
+            content = self.__pdf_parser.read_pdf(str(content), override=override)
 
         # 如果中间文件已经存在，且不覆盖，则直接返回其内容
         # if p_json.exists():
@@ -244,6 +259,8 @@ class Engine(BaseModel):
             po.mkdir(parents=True)
 
         logger.info(f"Generating Figures ({p_json})")
+        if self.__chains["summary_figures"] is None:
+            raise ValueError("Summary_figures chain is not initialized.")
         figures = self.__chains["summary_figures"].invoke({"text": content})
 
         # p_json.write_text(figures.model_dump_json(indent=2), encoding='utf-8')
@@ -258,7 +275,7 @@ class Engine(BaseModel):
 
         # 如果content是Path对象，说明其内不是文本内容，因此需要读取PDF文件
         if isinstance(content, Path) and content.suffix == ".pdf":
-            content = self.__pdf_parser.read_pdf(content, override=override)
+            content = self.__pdf_parser.read_pdf(str(content), override=override)
 
         # 检查中间文件是否存在
         if p_json.exists():
@@ -273,10 +290,12 @@ class Engine(BaseModel):
         # 检查PDF文件是否存在
         if p_pdf.exists() and not override:
             logger.warning(f"{p_pdf} is exist, please use --override to override it.")
-            return None
+            return Mindmap()
 
         # 调用模型生成脑图
         logger.info(f"Generating Mindmap JSON ({p_json})")
+        if self.__chains["mindmap"] is None:
+            raise ValueError("Mindmap chain is not initialized.")
         mindmap = self.__chains["mindmap"].invoke({"text": content})
         p_json.write_text(mindmap.model_dump_json(indent=2), encoding="utf-8")
 

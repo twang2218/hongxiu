@@ -12,6 +12,7 @@ import toml
 
 from .utils import ensure_list, package_path
 
+
 class ConfigItem(BaseModel):
     value: dict = {}
     preload: bool = False
@@ -36,7 +37,12 @@ class ConfigItem(BaseModel):
         if name in self.value:
             item = self.value[name]
             if isinstance(item, dict):
-                return ConfigItem(value=item, preload=self.preload, prefix=self.prefix, envvars=self.envvars)
+                return ConfigItem(
+                    value=item,
+                    preload=self.preload,
+                    prefix=self.prefix,
+                    envvars=self.envvars,
+                )
             else:
                 if self.preload:
                     # 值已经处理过,直接返回
@@ -67,7 +73,7 @@ class ConfigItem(BaseModel):
         """
         return self.value
 
-    def __process_value(self, value: Any) -> str:
+    def __process_value(self, value: Any) -> Any:
         if isinstance(value, str):
             if value.startswith("@file "):
                 # @file path
@@ -87,10 +93,21 @@ class ConfigItem(BaseModel):
     def __get_env_var(self, key: str) -> str:
         if self.prefix and not key.startswith(self.prefix):
             prefixed_key = f"{self.prefix}_{key}"
-            if prefixed_key in os.environ:
-                return self.envvars[prefixed_key] or os.getenv(prefixed_key)
-        return self.envvars[key] or os.getenv(key)
-    
+            if prefixed_key in self.envvars:
+                return self.envvars[prefixed_key]
+            value = os.getenv(prefixed_key)
+            if value:
+                return value
+
+        if key in self.envvars:
+            return self.envvars[key]
+        else:
+            value = os.getenv(key)
+            if value:
+                return value
+            else:
+                return ""
+
     def __process_config(self, cfg: dict) -> dict:
         c = {}
         for k, v in cfg.items():
@@ -156,7 +173,12 @@ class Config(BaseModel):
         cfg_from_env = self.load_env()
         cfg_from_file = self.load_files()
         cfg_final = deep_update(cfg_from_file, cfg_from_env)
-        cfg = ConfigItem(value=cfg_final, preload=self.preload, prefix=self.prefix, envvars=self.envvars)
+        cfg = ConfigItem(
+            value=cfg_final,
+            preload=self.preload,
+            prefix=self.prefix,
+            envvars=self.envvars,
+        )
         super().__setattr__("config", cfg)
         logger.debug(f"load(): {cfg}")
         return self.to_dict()
@@ -365,8 +387,9 @@ class Config(BaseModel):
         Returns:
             dict: 配置数据字典
         """
-        cfg = configparser.ConfigParser()
-        cfg.read(path)
+        parser = configparser.ConfigParser()
+        parser.read(path)
+        cfg = {section: dict(parser.items(section)) for section in parser.sections()}
         return cfg
 
 
@@ -397,4 +420,3 @@ def deep_update(old: dict, newer: dict) -> dict:
         else:
             c[k] = v
     return c
-

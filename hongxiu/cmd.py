@@ -66,10 +66,14 @@ def init_command(config, debug, pdf_parser, model, override):
     preset_envvars = {
         "TEMPLATE_SUMMARY_PATH": package_path("config/summary.tmpl"),
         "TEMPLATE_SUMMARY_FIGURES_PATH": package_path("config/summary_figures.tmpl"),
-        "TEMPLATE_SUMMARY_MERGE_FIGURES_PATH": package_path("config/summary_merge_figures.tmpl"),
+        "TEMPLATE_SUMMARY_MERGE_FIGURES_PATH": package_path(
+            "config/summary_merge_figures.tmpl"
+        ),
         "TEMPLATE_MINDMAP_PATH": package_path("config/mindmap.tmpl"),
     }
-    cfg = Config(config_files=config, prefix="HONGXIU", dotenv=True, envvars=preset_envvars)
+    cfg = Config(
+        config_files=config, prefix="HONGXIU", dotenv=True, envvars=preset_envvars
+    )
     pprint(cfg.to_dict(), sort_dicts=False)
     pprint(cfg.chains.mindmap.template.system[:200] + "...")
     if pdf_parser:

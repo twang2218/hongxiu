@@ -2,12 +2,13 @@ import io
 from pathlib import Path
 from typing import List
 
-from graphviz import Digraph
+from graphviz import Digraph  # type: ignore
 from loguru import logger
 from pydantic import BaseModel
 
 from .utils import color_gradient, color_luminance, package_path
 from .model import Mindmap, Summary
+
 
 def render_summary_to_markdown(
     data: str | dict | Summary, output: Path, override: bool = False
@@ -150,7 +151,7 @@ def render_summary_to_latex_dict(buf: io.StringIO, data: dict, level: int = 0):
 def render_summary_to_latex(
     data: str | dict | Summary,
     output: Path,
-    figures: List[Path] = [],
+    figures: List[Path] | List[str] = [],
     template_file: Path = Path(package_path("config/poster-template.tex")),
     override: bool = False,
 ) -> str:
@@ -158,7 +159,7 @@ def render_summary_to_latex(
 
     # 所有 data 都转换为目标 Summary 对象
     if isinstance(data, str):
-        Summary.model_validate_json(data)
+        data = Summary.model_validate_json(data)
     elif isinstance(data, dict):
         data = Summary(**data)
 
@@ -319,7 +320,7 @@ def render_mindmap_to_dot(
         node: str | list | dict,
         node_id: int = 0,
         node_level: int = 0,
-        parent_id: int = None,
+        parent_id: int = -1,
         parent_style: Style = Style(),
     ):
         nonlocal max_id
@@ -334,7 +335,7 @@ def render_mindmap_to_dot(
                 fontcolor=node_style.font_color,
                 color=node_style.border_color,
             )
-            if parent_id is not None:
+            if parent_id >= 0:
                 dot.edge(
                     f"node_{parent_id}", f"node_{node_id}", color=node_style.fill_color
                 )
@@ -350,7 +351,7 @@ def render_mindmap_to_dot(
                     fontcolor=node_style.font_color,
                     color=node_style.border_color,
                 )
-                if parent_id is not None:
+                if parent_id >= 0:
                     dot.edge(
                         f"node_{parent_id}",
                         f"node_{max_id}",
@@ -371,7 +372,7 @@ def render_mindmap_to_dot(
                     fontcolor=node_style.font_color,
                     color=node_style.border_color,
                 )
-                if parent_id is not None:
+                if parent_id >= 0:
                     dot.edge(
                         f"node_{parent_id}",
                         f"node_{key_node_id}",

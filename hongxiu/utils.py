@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 import re
 import struct
-from typing import Tuple
+from typing import Optional, Tuple
 
 from loguru import logger
 
@@ -10,18 +10,21 @@ from loguru import logger
 def download_paper(paper: str, output_dir: str) -> Path:
     import requests
 
-    re_arxiv = re.compile(r"\d+\.\d+")  # arXiv ID
-    if paper.startswith("http") or paper.startswith("https"):
+    re_arxiv = re.compile(r"\d{4}\.\d{4:5}")  # arXiv ID
+
+    if paper.startswith("http"):  # both http or https are included
         url = paper
-    elif paper.lower().startswith("arXiv:"):
+    elif paper.lower().startswith("arxiv:"):
         id = paper.split(":")[1]
         url = f"https://arxiv.org/pdf/{id}.pdf"
-    elif re_arxiv.match(paper):
-        m = re_arxiv.match(paper)
-        id = m.group()
-        url = f"https://arxiv.org/pdf/{id}.pdf"
     else:
-        logger.error(f"Unknown paper location: {paper}")
+        m = re_arxiv.match(paper)
+        if m:
+            id = m.group()
+            url = f"https://arxiv.org/pdf/{id}.pdf"
+        else:
+            logger.error(f"Unknown paper location: {paper}")
+            return Path()  # return empty path
 
     if output_dir is None:
         output_dir = Path.cwd() / "output"
@@ -109,7 +112,7 @@ def check_set_gpu(override=None):
         raise e
 
 
-def ensure_list(value, cls: type = None) -> list:
+def ensure_list(value, cls: Optional[type] = None) -> list:
     if isinstance(value, str):
         value = [value]
     elif isinstance(value, list):
