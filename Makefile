@@ -28,6 +28,14 @@ test: ## Test the code with pytest
 	@echo "🚀 Testing code: Running pytest"
 	@uv run pytest --cov --cov-config=pyproject.toml --cov-report=xml
 
+build: ## Build the package
+	@echo "🚀 Building package: Running build"
+	@uv build
+
+publish: ## Publish the package to PyPI
+	@echo "🚀 Publishing package: Running publish"
+	@uv publish
+
 clean:
 	find . -type f -name '*.pyc' -delete
 	find . -type d -name '__pycache__' -exec rm -r {} +

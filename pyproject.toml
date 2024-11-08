@@ -48,6 +48,9 @@ pix2text = [
     "torch>=2.5.1",
 ]
 
+[project.scripts]
+hongxiu = "hongxiu.cmd:main"
+
 [tool.uv]
 dev-dependencies = [
     "deptry>=0.21.0",
@@ -61,4 +64,7 @@ dev-dependencies = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["hongxiu"]
+where = ["."]
+
+[tool.setuptools.package-data]
+"hongxiu.config" = ["config/*.yaml", "config/*.yml", "config/*.tmpl"]
