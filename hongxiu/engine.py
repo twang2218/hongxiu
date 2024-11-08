@@ -31,10 +31,10 @@ class Engine(BaseModel):
     __llm_provider: Optional[str] = None
     __llm_name: Optional[str] = None
     __chains: Dict[str, RunnableSequence] = {
-        "summary": None,
         "mindmap": None,
-        "figures": None,
-        "insert_figures": None,
+        "summary": None,
+        "summary_figures": None,
+        "summary_merge_figures": None,
     }
     __pdf_parser: Optional[PdfParser] = None
 
@@ -157,9 +157,9 @@ class Engine(BaseModel):
         if self.__pdf_parser.get_type() == PdfParserType.PIX2TEXT:
             # 从 Markdown 中提取重要图片
             logger.info("Extracting Figures..")
-            figures = self.__chains["figures"].invoke({"text": content})
+            figures = self.__chains["summary_figures"].invoke({"text": content})
             if figures is None:
-                logger.warning("Failed to extract figures. None returned.")
+                logger.warning("Failed to extract summary_figures. None returned.")
             else:
                 # print(f"figures: ({type(figures)}) {figures}")
                 # 修订图片路径，使其相对于 .tex 文件
@@ -189,11 +189,11 @@ class Engine(BaseModel):
                     logger.info("Inserting Figures into Summary...")
                     # print(f"figures_json: \n{figures_json}")
                     # print(f"summary_json: \n{summary_json}")
-                    summary_new = self.__chains["insert_figures"].invoke(
+                    summary_new = self.__chains["summary_merge_figures"].invoke(
                         {"summary": summary_json, "figures": figures_json}
                     )
                     if summary is None:
-                        logger.warning("Failed to insert figures into summary.")
+                        logger.warning("Failed to summary_merge_figures into summary.")
                     else:
                         summary = summary_new
                         summary_json = summary.model_dump_json(indent=2)
@@ -244,7 +244,7 @@ class Engine(BaseModel):
             po.mkdir(parents=True)
 
         logger.info(f"Generating Figures ({p_json})")
-        figures = self.__chains["figures"].invoke({"text": content})
+        figures = self.__chains["summary_figures"].invoke({"text": content})
 
         # p_json.write_text(figures.model_dump_json(indent=2), encoding='utf-8')
         return figures.figures

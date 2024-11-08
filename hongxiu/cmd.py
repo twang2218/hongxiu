@@ -1,5 +1,3 @@
-import importlib
-import os
 from pathlib import Path
 from pprint import pprint
 import sys
@@ -7,7 +5,7 @@ import sys
 import click
 from loguru import logger
 
-from .utils import download_paper
+from .utils import download_paper, package_path
 from .pdf_parser import PdfParserType
 from .engine import Engine
 from .config import Config
@@ -60,34 +58,18 @@ class BaseCommand(click.core.Command):
         )
 
 
-def find_path(path: str) -> str:
-    if Path.cwd().joinpath(path).exists():
-        # 先寻找用户当前目录为基础的目录是否存在该文件
-        return str(Path.cwd().joinpath(path))
-    else:
-        # 如果不存在，则寻找包内位置
-        return str(importlib.resources.files("src").joinpath(path))
-
-def init_env_var(prefix:str = ""):
-    envs = {
-        "TEMPLATE_SUMMARY_PATH": find_path("config/summary.tmpl"),
-        "TEMPLATE_SUMMARY_FIGURES_PATH": find_path("config/summary_figures.tmpl"),
-        "TEMPLATE_SUMMARY_MERGE_FIGURES_PATH": find_path("config/summary_merge_figures.tmpl"),
-        "TEMPLATE_MINDMAP_PATH": find_path("config/mindmap.tmpl"),
-    }
-    for key, value in envs.items():
-        if prefix and not key.startswith(prefix):
-            key = f"{prefix}_{key}"
-        if key not in os.environ:
-            os.environ[key] = value
-
-
 def init_command(config, debug, pdf_parser, model, override):
     init_logger(debug)
-    init_env_var()
+    # init_env_var()
     if not config:
         config = ["hongxiu.json"]
-    cfg = Config(config_files=config, prefix="HONGXIU", dotenv=True)
+    preset_envvars = {
+        "TEMPLATE_SUMMARY_PATH": package_path("config/summary.tmpl"),
+        "TEMPLATE_SUMMARY_FIGURES_PATH": package_path("config/summary_figures.tmpl"),
+        "TEMPLATE_SUMMARY_MERGE_FIGURES_PATH": package_path("config/summary_merge_figures.tmpl"),
+        "TEMPLATE_MINDMAP_PATH": package_path("config/mindmap.tmpl"),
+    }
+    cfg = Config(config_files=config, prefix="HONGXIU", dotenv=True, envvars=preset_envvars)
     pprint(cfg.to_dict(), sort_dicts=False)
     pprint(cfg.chains.mindmap.template.system[:200] + "...")
     if pdf_parser:

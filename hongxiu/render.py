@@ -6,12 +6,8 @@ from graphviz import Digraph
 from loguru import logger
 from pydantic import BaseModel
 
-from .utils import color_gradient, color_luminance
+from .utils import color_gradient, color_luminance, package_path
 from .model import Mindmap, Summary
-
-LATEX_TEMPLATE_FILE = "poster-template.tex"
-DEFAULT_TEMPLATE_FILE = Path(__file__).parent.parent / "config" / LATEX_TEMPLATE_FILE
-
 
 def render_summary_to_markdown(
     data: str | dict | Summary, output: Path, override: bool = False
@@ -155,7 +151,7 @@ def render_summary_to_latex(
     data: str | dict | Summary,
     output: Path,
     figures: List[Path] = [],
-    template_file: Path = DEFAULT_TEMPLATE_FILE,
+    template_file: Path = Path(package_path("config/poster-template.tex")),
     override: bool = False,
 ) -> str:
     logger.info(f"Rendering Summary to LaTeX ({output})")

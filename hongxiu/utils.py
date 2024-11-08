@@ -126,3 +126,7 @@ def ensure_list(value, cls: type = None) -> list:
     if cls:
         value = [cls(i) for i in value]
     return value
+
+
+def package_path(filename: str = "") -> str:
+    return str(Path(__file__).parent.joinpath(filename))
