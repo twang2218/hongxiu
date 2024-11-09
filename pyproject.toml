@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hongxiu"
-version = "0.1.0" # This is a placeholder and will be overwritten by the build system.
+dynamic = ["version"]
 description = "A Python tool for research paper reading assistance."
 readme = "README.md"
 authors = [{name = "Tao Wang", email = "twang2218@gmail.com"}]
